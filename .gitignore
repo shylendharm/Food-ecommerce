@@ -1,0 +1,17 @@
+# python virtual environment
+venv/
+.ven/
+env/
+
+# Environment variable and secrets
+.env
+*.env
+secrets.json
+
+# Python cache 
+__pycache__/
+*.pyc
+
+# 3. Operating System clutter
+.DS_Store
+Thumbs.db
