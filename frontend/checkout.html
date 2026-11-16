@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | FoodExpress</title>
+
+    <!-- Google Font: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body class="checkout-page">
+
+    <!-- ========================================================= -->
+    <!-- 1. NAVIGATION BAR (Simple Header with Back to Menu link)   -->
+    <!-- ========================================================= -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand">
+                <span class="brand-icon">🍕</span>
+                <span class="brand-name">Food<strong>Express</strong></span>
+            </a>
+
+            <!-- Link back to browsing the menu -->
+            <a href="index.html" class="back-link">← Back to Menu</a>
+        </div>
+    </header>
+
+    <!-- ========================================================= -->
+    <!-- 2. MAIN CHECKOUT SECTION (2-Column Layout)                -->
+    <!-- ========================================================= -->
+    <main class="checkout-main">
+        <div class="checkout-container">
+
+            <div class="checkout-header">
+                <h1>Complete Your Order</h1>
+                <p>Please enter your delivery details below to confirm your food order.</p>
+            </div>
+
+            <div class="checkout-grid">
+
+                <!-- LEFT COLUMN: Delivery Details Form -->
+                <section class="checkout-form-section">
+                    <div class="checkout-card">
+                        <h3>📍 Delivery Information</h3>
+
+                        <!-- The HTML Form -->
+                        <form id="checkout-order-form" novalidate>
+
+                            <div class="form-group">
+                                <label for="cust-name">Full Name *</label>
+                                <input type="text" id="cust-name" placeholder="John Doe" required minlength="2">
+                                <span class="error-msg" id="name-error"></span>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="cust-email">Email Address *</label>
+                                    <input type="email" id="cust-email" placeholder="john@example.com" required>
+                                    <span class="error-msg" id="email-error"></span>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="cust-phone">Phone Number (10 digits) *</label>
+                                    <input type="tel" id="cust-phone" placeholder="9876543210" required minlength="10"
+                                        maxlength="15">
+                                    <span class="error-msg" id="phone-error"></span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cust-address">Complete Delivery Address *</label>
+                                <textarea id="cust-address"
+                                    placeholder="Flat / House No., Building Name, Street, Area, Landmark" required
+                                    minlength="5" rows="3"></textarea>
+                                <span class="error-msg" id="address-error"></span>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Payment Method</label>
+                                <div class="payment-options">
+                                    <label class="payment-option selected">
+                                        <input type="radio" name="payment_method" value="COD" checked>
+                                        <span class="payment-icon">💵</span>
+                                        <span class="payment-text">Cash on Delivery (COD)</span>
+                                    </label>
+                                    <label class="payment-option disabled" title="Online payments coming soon!">
+                                        <input type="radio" name="payment_method" value="ONLINE" disabled>
+                                        <span class="payment-icon">💳</span>
+                                        <span class="payment-text">UPI / Card (Coming Soon)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Submit button: Text updates dynamically with the total amount -->
+                            <button type="submit" id="submit-order-btn" class="place-order-btn checkout-submit-btn">
+                                <span>Confirm & Place Order • </span>
+                                <span id="checkout-btn-total">$0.00</span>
+                            </button>
+
+                        </form>
+                    </div>
+                </section>
+
+                <!-- RIGHT COLUMN: Order Summary Card -->
+                <aside class="checkout-summary-section">
+                    <div class="checkout-card order-summary-card">
+                        <h3>🛒 Order Summary</h3>
+
+                        <!-- List of items pulled from localStorage -->
+                        <div id="checkout-items-list" class="checkout-items-list">
+                            <!-- Populated dynamically by checkout.js -->
+                        </div>
+
+                        <div class="checkout-pricing">
+                            <div class="price-row">
+                                <span>Subtotal</span>
+                                <span id="checkout-subtotal">$0.00</span>
+                            </div>
+                            <div class="price-row">
+                                <span>Delivery Charges</span>
+                                <span class="free-delivery">FREE</span>
+                            </div>
+                            <div class="price-row total-row">
+                                <span>Total Amount to Pay</span>
+                                <span id="checkout-total">$0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="guarantee-box">
+                            <span class="shield-icon">🛡️</span>
+                            <small>Guaranteed hot & fresh food delivered within 30–40 minutes.</small>
+                        </div>
+                    </div>
+                </aside>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ========================================================= -->
+    <!-- 3. JAVASCRIPT IN ORDER OF DEPENDENCY                       -->
+    <!-- ========================================================= -->
+    <script src="js/api.js"></script>
+    <script src="js/cart.js"></script>
+    <script src="js/checkout.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Browser settings and character encoding -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodExpress | Fresh & Fast Food Delivery</title>
+
+    <!-- Clean Google Font: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Link to our CSS stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body>
+
+    <!-- ========================================================= -->
+    <!-- 1. NAVIGATION BAR (Brand Logo + Cart Button)               -->
+    <!-- ========================================================= -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand">
+                <span class="brand-icon">🍕</span>
+                <span class="brand-name">Food<strong>Express</strong></span>
+            </a>
+
+            <!-- Cart Button with an item counter badge -->
+            <button id="cart-toggle-btn" class="cart-btn" aria-label="Open Shopping Cart">
+                <span class="cart-icon">🛒</span>
+                <span class="cart-text">Cart</span>
+                <span id="cart-count-badge" class="badge">0</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ========================================================= -->
+    <!-- 2. HERO BANNER                                            -->
+    <!-- ========================================================= -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1>Delicious Food, Delivered Hot & Fresh.</h1>
+            <p>Hand-crafted pizzas, gourmet smash burgers, and decadent desserts made to order.</p>
+        </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- 3. CONTROLS BAR (Category Filter Tabs + Veg Toggle)        -->
+    <!-- ========================================================= -->
+    <section class="controls-section">
+        <div class="controls-container">
+
+            <!-- Category tabs will be rendered here dynamically by menu.js -->
+            <nav id="category-tabs" class="category-tabs" aria-label="Food Categories">
+                <button class="tab-btn active" data-category-id="">All Items</button>
+                <!-- JavaScript will automatically inject our seeded categories here! -->
+            </nav>
+
+            <!-- Veg-Only Toggle Switch -->
+            <div class="filter-toggle">
+                <label class="switch">
+                    <input type="checkbox" id="veg-only-checkbox">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">🌿 Veg Only</span>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- 4. MENU GRID (Where our dishes from MySQL will appear)    -->
+    <!-- ========================================================= -->
+    <main class="main-content">
+        <div class="section-header">
+            <h2 id="current-category-title">Our Menu</h2>
+            <span id="items-count-label" class="items-count">Loading delicious dishes...</span>
+        </div>
+
+        <!-- This empty container will be filled with food cards by menu.js! -->
+        <div id="menu-grid" class="menu-grid">
+            <!-- Loading state placeholder -->
+            <div class="loading-state">
+                <p>Connecting to kitchen...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- ========================================================= -->
+    <!-- 5. SHOPPING CART DRAWER (Slides in from the right)         -->
+    <!-- ========================================================= -->
+    <!-- Background backdrop overlay (dims the screen when cart is open) -->
+    <div id="cart-backdrop" class="cart-backdrop hidden"></div>
+
+    <!-- The sliding drawer container -->
+    <aside id="cart-drawer" class="cart-drawer closed">
+
+        <!-- Drawer Header -->
+        <div class="drawer-header">
+            <h3>Your Shopping Cart</h3>
+            <button id="close-cart-btn" class="close-btn" aria-label="Close Cart">&times;</button>
+        </div>
+
+        <!-- Cart Items List (populated dynamically by cart.js) -->
+        <div id="cart-items-container" class="cart-items">
+            <div class="empty-cart-state">
+                <span class="empty-icon">🍽️</span>
+                <p>Your cart is empty.</p>
+                <small>Add some tasty dishes from the menu!</small>
+            </div>
+        </div>
+
+        <!-- Drawer Footer (Pricing Summary & Checkout Link) -->
+        <div class="drawer-footer">
+            <div class="price-row">
+                <span>Subtotal</span>
+                <span id="cart-subtotal">$0.00</span>
+            </div>
+            <div class="price-row">
+                <span>Delivery Fee</span>
+                <span class="free-delivery">FREE</span>
+            </div>
+            <div class="price-row total-row">
+                <span>Total Amount</span>
+                <span id="cart-total">$0.00</span>
+            </div>
+
+            <!-- Button leading to the checkout.html page -->
+            <a href="checkout.html" id="proceed-checkout-btn" class="place-order-btn">
+                <span>Proceed to Checkout • </span>
+                <span id="btn-total-amount">$0.00</span>
+            </a>
+        </div>
+
+    </aside>
+
+    <!-- ========================================================= -->
+    <!-- 6. JAVASCRIPT LOGIC (In order of dependency!)              -->
+    <!-- ========================================================= -->
+    <!-- 1. api.js sets up backend connection -->
+    <script src="js/api.js"></script>
+    <!-- 2. cart.js manages cart storage & drawer -->
+    <script src="js/cart.js"></script>
+    <!-- 3. menu.js fetches items from API & renders cards -->
+    <script src="js/menu.js"></script>
+</body>
+
+</html>

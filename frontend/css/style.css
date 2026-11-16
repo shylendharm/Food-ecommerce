@@ -1,0 +1,773 @@
+/* =============================================================
+   1. GLOBAL RESET & DESIGN VARIABLES
+   ============================================================= */
+/* CSS Variables: A single place to change brand colors and fonts */
+:root {
+    --primary: #E23744;
+    /* Appetizing vibrant restaurant red */
+    --primary-hover: #C5222F;
+    /* Darker red when hovering buttons */
+    --veg-color: #16A34A;
+    /* Fresh green for vegetarian food */
+    --nonveg-color: #DC2626;
+    /* Red badge for non-veg */
+    --bg-page: #F8FAFC;
+    /* Soft light-gray background */
+    --surface: #FFFFFF;
+    /* Pure white for cards & navbar */
+    --text-main: #0F172A;
+    /* Dark slate for readable text */
+    --text-muted: #64748B;
+    /* Gray for secondary subtitles */
+    --border: #E2E8F0;
+    /* Subtle dividing border line */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* Universal reset: Makes padding and margins behave consistently */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    line-height: 1.5;
+    overflow-x: hidden;
+}
+
+/* =============================================================
+   2. NAVIGATION BAR
+   ============================================================= */
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    /* Flexbox: Logo on left, Cart on right */
+    justify-content: space-between;
+    /* Pushes them to opposite ends */
+    align-items: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    /* Removes blue underline from link */
+    color: var(--text-main);
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.brand strong {
+    color: var(--primary);
+    /* Highlights "Express" in red */
+}
+
+.cart-btn {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 9999px;
+    /* Pill-shaped rounded button */
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.cart-btn:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    /* Subtle lift when mouse hovers */
+}
+
+.badge {
+    background-color: white;
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 9999px;
+}
+
+/* =============================================================
+   3. HERO BANNER
+   ============================================================= */
+.hero-section {
+    background: linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%);
+    padding: 48px 24px;
+    text-align: center;
+    border-bottom: 1px solid #FECDD3;
+}
+
+.hero-content {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.hero-section h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #881337;
+    margin-bottom: 10px;
+}
+
+.hero-section p {
+    color: #9F1239;
+    font-size: 1.05rem;
+}
+
+/* =============================================================
+   4. CONTROLS BAR (Category Tabs & Veg Toggle)
+   ============================================================= */
+.controls-section {
+    max-width: 1200px;
+    margin: 24px auto 0;
+    padding: 0 24px;
+}
+
+.controls-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    /* Wraps on smaller mobile screens */
+}
+
+.category-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.tab-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 8px 18px;
+    border-radius: 9999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.tab-btn.active {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    /* Active category tab is red */
+}
+
+/* Modern Veg-Only Toggle Switch */
+.filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+}
+
+.toggle-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--veg-color);
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #CBD5E1;
+    border-radius: 24px;
+    transition: 0.3s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+input:checked+.slider {
+    background-color: var(--veg-color);
+}
+
+input:checked+.slider:before {
+    transform: translateX(18px);
+    /* Slide circle to the right */
+}
+
+/* =============================================================
+   5. MENU GRID & DISH CARDS
+   ============================================================= */
+.main-content {
+    max-width: 1200px;
+    margin: 32px auto 60px;
+    padding: 0 24px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+}
+
+.section-header h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.items-count {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* The Grid: 3-column shelf that auto-adapts to screen width */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+}
+
+/* Individual Dish Card */
+.food-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    /* Crops image cleanly to rounded corners */
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.food-card:hover {
+    transform: translateY(-4px);
+    /* Floating effect on hover */
+    box-shadow: var(--shadow-md);
+}
+
+.card-img-wrapper {
+    position: relative;
+    width: 100%;
+    height: 190px;
+    background-color: #E2E8F0;
+}
+
+.card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Prevents photo from stretching or distorting */
+}
+
+.veg-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: var(--shadow-sm);
+}
+
+.veg-badge.veg {
+    color: var(--veg-color);
+    border: 1px solid var(--veg-color);
+}
+
+.veg-badge.non-veg {
+    color: var(--nonveg-color);
+    border: 1px solid var(--nonveg-color);
+}
+
+.card-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    /* Pushes the button to the bottom evenly */
+}
+
+.dish-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.dish-desc {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    flex-grow: 1;
+    /* Keeps all card heights uniform */
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #F1F5F9;
+    padding-top: 12px;
+}
+
+.dish-price {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.add-btn {
+    background-color: white;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-btn:hover {
+    background-color: var(--primary);
+    color: white;
+}
+
+/* =============================================================
+   6. SLIDING CART DRAWER
+   ============================================================= */
+.cart-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    /* Dims the background */
+    z-index: 200;
+    transition: opacity 0.3s;
+}
+
+.cart-backdrop.hidden {
+    opacity: 0;
+    pointer-events: none;
+    /* Clicks pass through when hidden */
+}
+
+.cart-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100%;
+    max-width: 420px;
+    height: 100vh;
+    background-color: var(--surface);
+    box-shadow: var(--shadow-lg);
+    z-index: 210;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* When closed, slide 100% off the right edge of the screen */
+.cart-drawer.closed {
+    transform: translateX(100%);
+}
+
+/* When opened, slide back to position 0 */
+.cart-drawer.open {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+}
+
+.drawer-header h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.cart-items {
+    flex-grow: 1;
+    overflow-y: auto;
+    /* Allows cart to scroll if many items */
+    padding: 20px 24px;
+}
+
+.cart-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.item-info h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.item-info span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.qty-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #F1F5F9;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.qty-btn {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text-main);
+    padding: 0 4px;
+}
+
+.drawer-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+    background-color: #FAFAFA;
+}
+
+.price-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.price-row.total-row {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+    margin-top: 10px;
+    margin-bottom: 16px;
+}
+
+.free-delivery {
+    color: var(--veg-color);
+    font-weight: 700;
+}
+
+.place-order-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    background-color: var(--primary);
+    color: white;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 1.05rem;
+    transition: background-color 0.2s;
+}
+
+.place-order-btn:hover {
+    background-color: var(--primary-hover);
+}
+
+.empty-cart-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-muted);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+/* =============================================================
+   7. MODAL & UTILITY CLASSES
+   ============================================================= */
+.hidden {
+    display: none !important;
+}
+
+.loading-state {
+    grid-column: 1 / -1;
+    /* Span full width of the grid */
+    text-align: center;
+    padding: 60px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* =============================================================
+   8. CHECKOUT PAGE STYLING
+   ============================================================= */
+.back-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: var(--primary);
+}
+
+.checkout-main {
+    max-width: 1100px;
+    margin: 36px auto 60px;
+    padding: 0 24px;
+}
+
+.checkout-header {
+    margin-bottom: 28px;
+}
+
+.checkout-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.checkout-header p {
+    color: var(--text-muted);
+}
+
+.checkout-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 32px;
+    align-items: start;
+}
+
+.checkout-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+}
+
+.checkout-card h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    background: #FCFDFF;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(226, 55, 68, 0.12);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.error-msg {
+    color: var(--nonveg-color);
+    font-size: 0.8rem;
+    margin-top: 4px;
+    display: block;
+}
+
+.payment-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.payment-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.payment-option.selected {
+    border-color: var(--primary);
+    background: #FFF1F2;
+}
+
+.payment-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.payment-icon {
+    font-size: 1.3rem;
+}
+
+.payment-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.checkout-items-list {
+    max-height: 280px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.checkout-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.checkout-item-info h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.checkout-item-info span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.checkout-item-price {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.checkout-pricing {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    margin-bottom: 18px;
+}
+
+.guarantee-box {
+    background: #F8FAFC;
+    border: 1px dashed var(--border);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+}
+
+.checkout-submit-btn {
+    border: none;
+    cursor: pointer;
+}
