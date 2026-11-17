@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Database and metadata to ensure all tables exist
 from app.database import engine, Base
 
-# Import our modular routers
-from app.routes import menu, orders, auth
+# Import our modular routers (including new admin router!)
+from app.routes import menu, orders, auth, admin
 
 # Safe auto-creation: Creates any missing tables in MySQL on startup
 Base.metadata.create_all(bind=engine)
@@ -20,13 +20,11 @@ app = FastAPI(
 # -------------------------------------------------------------
 # CORS (Cross-Origin Resource Sharing) Middleware
 # -------------------------------------------------------------
-# Crucial: Allows our frontend HTML/JS to communicate with this backend
-# without being blocked by modern browser security policies.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],       # For local development, allow all origins
     allow_credentials=True,
-    allow_methods=["*"],       # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
+    allow_methods=["*"],       # Allow all HTTP methods (GET, POST, PATCH, DELETE, etc.)
     allow_headers=["*"],       # Allow all headers (Content-Type, Authorization, etc.)
 )
 
@@ -36,6 +34,7 @@ app.add_middleware(
 app.include_router(menu.router)
 app.include_router(orders.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 # -------------------------------------------------------------

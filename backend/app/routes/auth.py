@@ -2,11 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-# Import our database provider, ORM models, and Pydantic schemas
+# Import database provider, ORM models, and Pydantic schemas
 from app.database import get_db
 from app.models import User
 from app.schemas import UserCreate, UserLogin, UserResponse
-from app.security import hash_password, verify_password, create_access_token
+from app.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user
+)
 
 router = APIRouter(
     prefix="/api/auth",
@@ -64,20 +69,16 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     2. Verifies the password using the bcrypt hash.
     3. Issues a signed 24-hour JWT access token.
     """
-    # Step 1: Find user by email
     user = db.query(User).filter(User.email == credentials.email).first()
 
-    # Step 2: Verify password
-    # Security note: Return the same generic error whether the email doesn't exist OR the password is wrong!
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password."
         )
 
-    # Step 3: Create the JWT login token
     token_payload = {
-        "sub": str(user.id),       # 'sub' (subject) standard claim: the user's primary key
+        "sub": str(user.id),
         "email": user.email,
         "role": user.role.value
     }
@@ -88,3 +89,12 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": user
     }
+
+
+@router.get("/me", response_model=UserResponse, summary="Get current logged-in user profile")
+def get_my_profile(current_user: User = Depends(get_current_user)):
+    """
+    Returns the profile information of the currently authenticated user.
+    Protected endpoint: Requires a valid Bearer token!
+    """
+    return current_user

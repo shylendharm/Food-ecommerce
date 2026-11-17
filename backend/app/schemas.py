@@ -15,7 +15,7 @@ class CategoryResponse(CategoryBase):
     id: int
 
     class Config:
-        from_attributes = True  # Allows Pydantic to read SQLAlchemy model objects!
+        from_attributes = True
 
 
 # =============================================================
@@ -30,6 +30,10 @@ class MenuItemBase(BaseModel):
     is_available: bool = True
     category_id: int
 
+class MenuItemCreate(MenuItemBase):
+    """Used by restaurant admins to add brand new dishes to the menu"""
+    pass
+
 class MenuItemResponse(MenuItemBase):
     id: int
 
@@ -40,12 +44,10 @@ class MenuItemResponse(MenuItemBase):
 # =============================================================
 # 3. ORDER ITEM SCHEMAS (Items inside an order)
 # =============================================================
-# What the customer sends when adding an item to their order:
 class OrderItemCreate(BaseModel):
     menu_item_id: int
-    quantity: int = Field(..., gt=0, example=2)  # gt=0 means quantity must be greater than 0!
+    quantity: int = Field(..., gt=0, example=2)
 
-# What the server returns to show what was ordered:
 class OrderItemResponse(BaseModel):
     id: int
     menu_item_id: Optional[int]
@@ -60,16 +62,18 @@ class OrderItemResponse(BaseModel):
 # =============================================================
 # 4. ORDER SCHEMAS
 # =============================================================
-# What the customer submits from the checkout form:
 class OrderCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, example="John Doe")
     customer_email: EmailStr = Field(..., example="john@example.com")
     customer_phone: str = Field(..., min_length=10, max_length=15, example="9876543210")
     delivery_address: str = Field(..., min_length=5, example="Flat 402, Sunshine Apartments, Bengaluru")
     payment_method: str = Field(default="COD", example="COD")
-    items: List[OrderItemCreate] = Field(..., min_items=1)  # Order must have at least 1 item!
+    items: List[OrderItemCreate] = Field(..., min_items=1)
 
-# What the server returns after an order is placed:
+# Used by the Kitchen Staff to update order status
+class OrderStatusUpdate(BaseModel):
+    status: OrderStatus = Field(..., example="PREPARING")
+
 class OrderResponse(BaseModel):
     id: int
     user_id: Optional[int]
@@ -93,14 +97,13 @@ class OrderResponse(BaseModel):
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2)
     email: EmailStr
-    password: str = Field(..., min_length=6)  # Plain text from signup form (will be hashed)
+    password: str = Field(..., min_length=6)
     phone: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-# Notice: UserResponse NEVER includes password or password_hash!
 class UserResponse(BaseModel):
     id: int
     name: str
