@@ -1,35 +1,55 @@
 /* =============================================================
    API CLIENT MODULE (frontend/js/api.js)
    Centralizes all HTTP network communication with our FastAPI backend.
+   Automatically manages JWT authentication and token persistence.
    ============================================================= */
 
 // The base address of our live Python/FastAPI server
 const API_BASE_URL = "http://localhost:8000/api";
 
+// LocalStorage Keys used to persist login session across page refreshes
+const TOKEN_KEY = "foodexpress_jwt_token";
+const USER_KEY = "foodexpress_user_profile";
+
+
 /**
- * Helper function to handle network requests cleanly
- * Sends an HTTP request and parses the incoming JSON response.
+ * Centralized fetch wrapper:
+ * 1. Automatically injects 'Authorization: Bearer <token>' if user is logged in.
+ * 2. Parses JSON responses safely.
+ * 3. Catches and bubbles up server error messages cleanly.
  */
 async function apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+
+    // Read stored JWT token from localStorage (if user is logged in)
+    const token = getStoredToken();
+    const authHeaders = token ? { "Authorization": `Bearer ${token}` } : {};
 
     try {
         const response = await fetch(url, {
             headers: {
                 "Content-Type": "application/json",
-                ...options.headers,
+                ...authHeaders,         // Injects Bearer token automatically!
+                ...options.headers,     // Allows caller to override headers if needed
             },
             ...options,
         });
 
-        // If the server answered with an error code (400, 404, 500, etc.)
+        // Handle HTTP error statuses (400, 401, 403, 404, 500)
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+
+            // If the server tells us our token has expired or is invalid
+            if (response.status === 401 && token) {
+                console.warn("⚠️ Session expired. Clearing stored credentials.");
+                logoutUser();
+            }
+
             const errorMessage = errorData.detail || `Server error: ${response.status} ${response.statusText}`;
             throw new Error(errorMessage);
         }
 
-        // Parse the JSON data sent back from Python!
+        // Return parsed JSON
         return await response.json();
     } catch (error) {
         console.error(`❌ Network request failed for [${endpoint}]:`, error.message);
@@ -39,21 +59,87 @@ async function apiRequest(endpoint, options = {}) {
 
 
 /* =============================================================
-   1. MENU & CATEGORIES API FUNCTIONS
+   1. AUTHENTICATION & SESSION MANAGEMENT
    ============================================================= */
 
+// Saves token and user info to browser's permanent localStorage
+function saveAuthSession(token, user) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+// Retrieves the stored JWT token string (or null)
+function getStoredToken() {
+    return localStorage.getItem(TOKEN_KEY);
+}
+
+// Retrieves the stored user object (or null)
+function getStoredUser() {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+}
+
+// Clears session on logout
+function logoutUser() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    window.location.reload(); // Refresh the page to reset navbar and UI
+}
+
+// Checks if someone is currently logged in
+function isAuthenticated() {
+    return !!getStoredToken();
+}
+
+// Checks if the logged-in user is an administrator
+function isAdmin() {
+    const user = getStoredUser();
+    return user && user.role === "ADMIN";
+}
+
 /**
- * Fetches all categories (Pizzas, Burgers, etc.)
- * Calls: GET http://localhost:8000/api/categories
+ * Logs in a user with email and password
+ * Calls: POST /api/auth/login
  */
+async function loginUser(email, password) {
+    const data = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+    });
+
+    // Save token and user details to localStorage
+    saveAuthSession(data.access_token, data.user);
+    return data;
+}
+
+/**
+ * Registers a new customer account
+ * Calls: POST /api/auth/register
+ */
+async function registerUser(name, email, password, phone = null) {
+    return await apiRequest("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, phone }),
+    });
+}
+
+/**
+ * Fetches latest profile data for the logged-in user
+ * Calls: GET /api/auth/me
+ */
+async function getMyProfile() {
+    return await apiRequest("/auth/me");
+}
+
+
+/* =============================================================
+   2. MENU & CATEGORIES API FUNCTIONS
+   ============================================================= */
+
 async function getCategories() {
     return await apiRequest("/categories");
 }
 
-/**
- * Fetches menu items with optional category and veg filtering
- * Calls: GET http://localhost:8000/api/menu?category_id=1&is_veg=true
- */
 async function getMenuItems(categoryId = null, isVeg = null) {
     const queryParams = new URLSearchParams();
 
@@ -71,35 +157,76 @@ async function getMenuItems(categoryId = null, isVeg = null) {
     return await apiRequest(endpoint);
 }
 
-/**
- * Fetches full details for a single dish by its unique ID
- * Calls: GET http://localhost:8000/api/menu/{id}
- */
 async function getMenuItemById(itemId) {
     return await apiRequest(`/menu/${itemId}`);
 }
 
 
 /* =============================================================
-   2. ORDERS & CHECKOUT API FUNCTIONS
+   3. ORDERS & CHECKOUT API FUNCTIONS
    ============================================================= */
 
-/**
- * Submits a new customer order to the database
- * Calls: POST http://localhost:8000/api/orders
- * Payload format: { customer_name, customer_email, customer_phone, delivery_address, payment_method, items }
- */
 async function submitOrder(orderData) {
     return await apiRequest("/orders", {
         method: "POST",
-        body: JSON.stringify(orderData), // Converts Python-style dictionary/JSON
+        body: JSON.stringify(orderData),
+    });
+}
+
+async function getOrderById(orderId) {
+    return await apiRequest(`/orders/${orderId}`);
+}
+
+/**
+ * Fetches order history for the currently logged-in customer
+ * Calls: GET /api/orders/my-orders
+ */
+async function getMyOrders() {
+    return await apiRequest("/orders/my-orders");
+}
+
+
+/* =============================================================
+   4. RESTAURANT ADMIN & KITCHEN API FUNCTIONS
+   ============================================================= */
+
+/**
+ * Fetches all orders across all customers (with optional status filter)
+ * Calls: GET /api/admin/orders?status_filter=PENDING
+ */
+async function getAdminOrders(statusFilter = null) {
+    const endpoint = statusFilter ? `/admin/orders?status_filter=${statusFilter}` : "/admin/orders";
+    return await apiRequest(endpoint);
+}
+
+/**
+ * Updates an order status (e.g., PENDING -> PREPARING)
+ * Calls: PATCH /api/admin/orders/{id}/status
+ */
+async function updateOrderStatus(orderId, newStatus) {
+    return await apiRequest(`/admin/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
     });
 }
 
 /**
- * Fetches an existing order for live tracking & receipts
- * Calls: GET http://localhost:8000/api/orders/{id}
+ * Toggles a dish's in-stock / out-of-stock availability
+ * Calls: PATCH /api/admin/menu/{id}/toggle-stock
  */
-async function getOrderById(orderId) {
-    return await apiRequest(`/orders/${orderId}`);
+async function toggleDishStock(itemId) {
+    return await apiRequest(`/admin/menu/${itemId}/toggle-stock`, {
+        method: "PATCH",
+    });
+}
+
+/**
+ * Creates a new dish in the menu
+ * Calls: POST /api/admin/menu
+ */
+async function createMenuItem(dishData) {
+    return await apiRequest("/admin/menu", {
+        method: "POST",
+        body: JSON.stringify(dishData),
+    });
 }

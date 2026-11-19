@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Orders | FoodExpress</title>
+
+    <!-- Google Font: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- CSS Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body class="orders-history-page">
+
+    <!-- ========================================================= -->
+    <!-- 1. NAVIGATION BAR (Brand + Navbar Dropdown + Back to Menu) -->
+    <!-- ========================================================= -->
+    <header class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="brand">
+                <span class="brand-icon">🍕</span>
+                <span class="brand-name">Food<strong>Express</strong></span>
+            </a>
+
+            <div class="nav-actions">
+                <!-- User Profile dropdown is automatically initialized by auth.js -->
+                <div id="auth-nav-container"></div>
+                <a href="index.html" class="back-link">← Back to Menu</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================================= -->
+    <!-- 2. MAIN ORDERS HISTORY CONTAINER                          -->
+    <!-- ========================================================= -->
+    <main class="main-content" style="max-width: 900px; margin: 30px auto; padding: 0 20px;">
+
+        <div class="section-header" style="margin-bottom: 24px;">
+            <div>
+                <h1 style="font-size: 1.8rem; font-weight: 800; color: var(--text-main);">📦 My Past Orders</h1>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">
+                    Review your previous food receipts and track active deliveries.
+                </p>
+            </div>
+            <span id="orders-count-label" class="items-count">Loading your receipts...</span>
+        </div>
+
+        <!-- This container is populated dynamically by my-orders.js -->
+        <div id="orders-list-container" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="loading-state">
+                <p>Retrieving your order history from server...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ========================================================= -->
+    <!-- 3. JAVASCRIPT LOGIC (In order of dependency!)              -->
+    <!-- ========================================================= -->
+    <!-- 1. api.js handles requests and attaches JWT Bearer token -->
+    <script src="js/api.js"></script>
+    <!-- 2. auth.js controls the navbar dropdown -->
+    <script src="js/auth.js"></script>
+    <!-- 3. my-orders.js fetches and renders orders -->
+    <script src="js/my-orders.js"></script>
+</body>
+
+</html>

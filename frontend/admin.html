@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Staff Portal | FoodExpress Admin</title>
+
+    <!-- Google Font: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- CSS Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body class="admin-portal-page" style="background-color: #F8FAFC;">
+
+    <!-- ========================================================= -->
+    <!-- 1. NAVIGATION BAR (Brand with Purple Staff Badge)          -->
+    <!-- ========================================================= -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <a href="index.html" class="brand">
+                    <span class="brand-icon">🍕</span>
+                    <span class="brand-name">Food<strong>Express</strong></span>
+                </a>
+                <span
+                    style="background-color: #7C3AED; color: white; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; text-transform: uppercase;">
+                    Staff Kitchen
+                </span>
+            </div>
+
+            <div class="nav-actions">
+                <div id="auth-nav-container"></div>
+                <a href="index.html" class="back-link">← Customer Storefront</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================================= -->
+    <!-- 2. ACCESS DENIED GUARD (Shown if user is not ADMIN)       -->
+    <!-- ========================================================= -->
+    <div id="admin-access-denied"
+        style="display: none; max-width: 600px; margin: 60px auto; padding: 40px 24px; text-align: center; background: white; border-radius: var(--radius-md); border: 1px solid #FECACA; box-shadow: var(--shadow-sm);">
+        <span style="font-size: 3.5rem;">🛑</span>
+        <h2 style="color: #991B1B; font-size: 1.6rem; font-weight: 800; margin: 14px 0 8px;">Access Denied (403
+            Forbidden)</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">
+            You are logged in, but you do not have restaurant staff or administrator credentials to view the Kitchen
+            Management portal.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <a href="index.html" class="place-order-btn" style="text-decoration: none; padding: 10px 20px;">Back to
+                Storefront</a>
+            <button onclick="logoutUser()" class="btn-login" style="background: white;">Sign In as Staff</button>
+        </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 3. MAIN DASHBOARD INTERFACE (Shown only for ADMIN)        -->
+    <!-- ========================================================= -->
+    <main id="admin-dashboard-content" style="max-width: 1200px; margin: 30px auto; padding: 0 24px; display: none;">
+
+        <!-- Dashboard Header -->
+        <div
+            style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--text-main);">🍳 Kitchen & Operations
+                    Console</h1>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">
+                    Real-time order workflow management, kitchen dispatch, and menu stock controls.
+                </p>
+            </div>
+
+            <!-- Main Navigation Tabs: Orders vs Inventory -->
+            <div style="display: flex; gap: 8px; background: #E2E8F0; padding: 4px; border-radius: 10px;">
+                <button id="admin-tab-orders" class="btn-login"
+                    style="background: white; border: none; font-weight: 700; color: var(--text-main);">
+                    📋 Active Tickets
+                </button>
+                <button id="admin-tab-inventory" class="btn-login"
+                    style="background: transparent; border: none; font-weight: 600; color: var(--text-muted);">
+                    📦 Menu Stock
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- VIEW 1: ORDERS TICKET BOARD                               -->
+        <!-- ========================================================= -->
+        <section id="admin-orders-view">
+            <!-- Filter Pills Bar -->
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="order-filter-btn tab-btn active" data-status="">All Tickets</button>
+                    <button class="order-filter-btn tab-btn" data-status="PENDING">⏳ New Tickets</button>
+                    <button class="order-filter-btn tab-btn" data-status="PREPARING">🔥 Cooking</button>
+                    <button class="order-filter-btn tab-btn" data-status="OUT_FOR_DELIVERY">🛵 On The Way</button>
+                    <button class="order-filter-btn tab-btn" data-status="DELIVERED">✅ Delivered</button>
+                </div>
+
+                <button id="refresh-orders-btn" class="btn-login" style="background: white;">
+                    <span>🔄</span>
+                    <span>Refresh</span>
+                </button>
+            </div>
+
+            <!-- Orders Container -->
+            <div id="admin-orders-container"
+                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+                <div class="loading-state">
+                    <p>Connecting to kitchen dispatch...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- VIEW 2: MENU INVENTORY & STOCK CONTROLS (Hidden by default) -->
+        <!-- ========================================================= -->
+        <section id="admin-inventory-view" style="display: none;">
+            <div
+                style="background: white; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main);">Dish Availability
+                            Toggle</h3>
+                        <p style="font-size: 0.88rem; color: var(--text-muted);">One-click toggle to mark items out of
+                            stock if kitchen ingredients run out.</p>
+                    </div>
+                </div>
+
+                <div id="admin-inventory-table-container">
+                    <!-- Populated dynamically by admin.js -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ========================================================= -->
+    <!-- 4. JAVASCRIPT LOGIC                                       -->
+    <!-- ========================================================= -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+
+</html>

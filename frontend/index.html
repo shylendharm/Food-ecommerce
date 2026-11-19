@@ -21,7 +21,7 @@
 <body>
 
     <!-- ========================================================= -->
-    <!-- 1. NAVIGATION BAR (Brand Logo + Cart Button)               -->
+    <!-- 1. NAVIGATION BAR (Brand Logo + User Profile + Cart)       -->
     <!-- ========================================================= -->
     <header class="navbar">
         <div class="nav-container">
@@ -30,12 +30,23 @@
                 <span class="brand-name">Food<strong>Express</strong></span>
             </a>
 
-            <!-- Cart Button with an item counter badge -->
-            <button id="cart-toggle-btn" class="cart-btn" aria-label="Open Shopping Cart">
-                <span class="cart-icon">🛒</span>
-                <span class="cart-text">Cart</span>
-                <span id="cart-count-badge" class="badge">0</span>
-            </button>
+            <!-- Right-side actions: User Account + Cart -->
+            <div class="nav-actions">
+                <!-- Dynamically populated by auth.js: shows Sign In OR User Profile Dropdown -->
+                <div id="auth-nav-container">
+                    <button id="open-auth-btn" class="btn-login">
+                        <span>👤</span>
+                        <span>Sign In</span>
+                    </button>
+                </div>
+
+                <!-- Cart Button with an item counter badge -->
+                <button id="cart-toggle-btn" class="cart-btn" aria-label="Open Shopping Cart">
+                    <span class="cart-icon">🛒</span>
+                    <span class="cart-text">Cart</span>
+                    <span id="cart-count-badge" class="badge">0</span>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -58,7 +69,6 @@
             <!-- Category tabs will be rendered here dynamically by menu.js -->
             <nav id="category-tabs" class="category-tabs" aria-label="Food Categories">
                 <button class="tab-btn active" data-category-id="">All Items</button>
-                <!-- JavaScript will automatically inject our seeded categories here! -->
             </nav>
 
             <!-- Veg-Only Toggle Switch -->
@@ -82,9 +92,8 @@
             <span id="items-count-label" class="items-count">Loading delicious dishes...</span>
         </div>
 
-        <!-- This empty container will be filled with food cards by menu.js! -->
+        <!-- Populated with food cards by menu.js -->
         <div id="menu-grid" class="menu-grid">
-            <!-- Loading state placeholder -->
             <div class="loading-state">
                 <p>Connecting to kitchen...</p>
             </div>
@@ -94,19 +103,14 @@
     <!-- ========================================================= -->
     <!-- 5. SHOPPING CART DRAWER (Slides in from the right)         -->
     <!-- ========================================================= -->
-    <!-- Background backdrop overlay (dims the screen when cart is open) -->
     <div id="cart-backdrop" class="cart-backdrop hidden"></div>
 
-    <!-- The sliding drawer container -->
     <aside id="cart-drawer" class="cart-drawer closed">
-
-        <!-- Drawer Header -->
         <div class="drawer-header">
             <h3>Your Shopping Cart</h3>
             <button id="close-cart-btn" class="close-btn" aria-label="Close Cart">&times;</button>
         </div>
 
-        <!-- Cart Items List (populated dynamically by cart.js) -->
         <div id="cart-items-container" class="cart-items">
             <div class="empty-cart-state">
                 <span class="empty-icon">🍽️</span>
@@ -115,7 +119,6 @@
             </div>
         </div>
 
-        <!-- Drawer Footer (Pricing Summary & Checkout Link) -->
         <div class="drawer-footer">
             <div class="price-row">
                 <span>Subtotal</span>
@@ -130,23 +133,87 @@
                 <span id="cart-total">$0.00</span>
             </div>
 
-            <!-- Button leading to the checkout.html page -->
             <a href="checkout.html" id="proceed-checkout-btn" class="place-order-btn">
                 <span>Proceed to Checkout • </span>
                 <span id="btn-total-amount">$0.00</span>
             </a>
         </div>
-
     </aside>
 
     <!-- ========================================================= -->
-    <!-- 6. JAVASCRIPT LOGIC (In order of dependency!)              -->
+    <!-- 6. AUTHENTICATION POPUP MODAL (LOGIN & SIGN UP)           -->
     <!-- ========================================================= -->
-    <!-- 1. api.js sets up backend connection -->
+    <div id="auth-modal" class="modal-backdrop">
+        <div class="modal-dialog">
+            <button id="close-auth-modal-btn" class="modal-close-btn" aria-label="Close">&times;</button>
+
+            <!-- Tab switches: Sign In vs Sign Up -->
+            <div class="modal-tabs">
+                <button id="tab-login-btn" class="modal-tab-btn active">Sign In</button>
+                <button id="tab-register-btn" class="modal-tab-btn">Create Account</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Error banner if credentials fail -->
+                <div id="auth-error-banner" class="auth-error-banner"></div>
+
+                <!-- 1. LOGIN FORM -->
+                <form id="login-form" class="auth-form">
+                    <div class="form-field">
+                        <label for="login-email">Email Address</label>
+                        <input type="email" id="login-email" required placeholder="alice@example.com">
+                    </div>
+                    <div class="form-field">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" required placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn-auth-submit">Sign In</button>
+
+                    <!-- 1-Click Quick Demo Buttons -->
+                    <div class="demo-accounts-box">
+                        <span class="demo-title">⚡ 1-Click Demo Login</span>
+                        <div class="demo-pills">
+                            <button type="button" class="demo-pill" id="demo-customer-btn">👤 Customer (Alice)</button>
+                            <button type="button" class="demo-pill admin" id="demo-admin-btn">🍳 Kitchen Staff
+                                (Admin)</button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- 2. REGISTRATION FORM (Hidden by default) -->
+                <form id="register-form" class="auth-form hidden">
+                    <div class="form-field">
+                        <label for="reg-name">Full Name</label>
+                        <input type="text" id="reg-name" required placeholder="Your Name">
+                    </div>
+                    <div class="form-field">
+                        <label for="reg-email">Email Address</label>
+                        <input type="email" id="reg-email" required placeholder="you@example.com">
+                    </div>
+                    <div class="form-field">
+                        <label for="reg-phone">Phone Number (Optional)</label>
+                        <input type="tel" id="reg-phone" placeholder="9876543210">
+                    </div>
+                    <div class="form-field">
+                        <label for="reg-password">Password (Min 6 characters)</label>
+                        <input type="password" id="reg-password" required minlength="6" placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn-auth-submit">Create Account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 7. JAVASCRIPT LOGIC (In order of dependency!)              -->
+    <!-- ========================================================= -->
+    <!-- 1. api.js sets up backend connection & JWT session -->
     <script src="js/api.js"></script>
-    <!-- 2. cart.js manages cart storage & drawer -->
+    <!-- 2. auth.js manages login popup and user navbar -->
+    <script src="js/auth.js"></script>
+    <!-- 3. cart.js manages cart storage & drawer -->
     <script src="js/cart.js"></script>
-    <!-- 3. menu.js fetches items from API & renders cards -->
+    <!-- 4. menu.js fetches items from API & renders cards -->
     <script src="js/menu.js"></script>
 </body>
 
