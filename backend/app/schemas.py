@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
-from app.models import UserRole, OrderStatus
+from app.models import UserRole, OrderStatus, PaymentStatus
 
 # =============================================================
 # 1. CATEGORY SCHEMAS
@@ -31,7 +31,6 @@ class MenuItemBase(BaseModel):
     category_id: int
 
 class MenuItemCreate(MenuItemBase):
-    """Used by restaurant admins to add brand new dishes to the menu"""
     pass
 
 class MenuItemResponse(MenuItemBase):
@@ -70,7 +69,6 @@ class OrderCreate(BaseModel):
     payment_method: str = Field(default="COD", example="COD")
     items: List[OrderItemCreate] = Field(..., min_items=1)
 
-# Used by the Kitchen Staff to update order status
 class OrderStatusUpdate(BaseModel):
     status: OrderStatus = Field(..., example="PREPARING")
 
@@ -110,6 +108,44 @@ class UserResponse(BaseModel):
     email: EmailStr
     phone: Optional[str]
     role: UserRole
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# =============================================================
+# 6. PAYMENT SCHEMAS
+# =============================================================
+# Request from frontend to start an online payment session:
+class PaymentIntentCreate(BaseModel):
+    order_id: int = Field(..., example=1)
+
+# Response returned to frontend to open the payment modal:
+class PaymentIntentResponse(BaseModel):
+    order_id: int
+    transaction_id: str
+    amount: Decimal
+    currency: str
+    key_id: str
+
+# Payload sent by the Payment Gateway Webhook:
+class PaymentWebhookPayload(BaseModel):
+    event: str = Field(..., example="payment.captured")
+    transaction_id: str = Field(..., example="txn_sim_123456")
+    order_id: int = Field(..., example=1)
+    amount: Decimal = Field(..., example=34.99)
+    status: PaymentStatus = Field(..., example="SUCCESS")
+
+# Full payment ledger record from MySQL:
+class PaymentResponse(BaseModel):
+    id: int
+    order_id: int
+    transaction_id: str
+    amount: Decimal
+    currency: str
+    provider: str
+    status: PaymentStatus
     created_at: datetime
 
     class Config:

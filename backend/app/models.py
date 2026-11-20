@@ -8,7 +8,7 @@ from app.database import Base
 import enum
 
 # -------------------------------------------------------------
-# Enums: Pre-defined allowed options (matches our MySQL ENUMs)
+# Enums: Pre-defined allowed options
 # -------------------------------------------------------------
 class UserRole(str, enum.Enum):
     CUSTOMER = "CUSTOMER"
@@ -19,6 +19,12 @@ class OrderStatus(str, enum.Enum):
     PREPARING = "PREPARING"
     OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"
     DELIVERED = "DELIVERED"
+
+class PaymentStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
 
 # -------------------------------------------------------------
 # 1. Users Model (Customers & Restaurant Staff)
@@ -34,8 +40,9 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationship: One user can have many orders
+    # Relationship
     orders = relationship("Order", back_populates="customer")
+
 
 # -------------------------------------------------------------
 # 2. Categories Model (Starters, Mains, Desserts, etc.)
@@ -47,8 +54,9 @@ class Category(Base):
     name = Column(String(100), nullable=False)
     slug = Column(String(100), unique=True, index=True, nullable=False)
 
-    # Relationship: One category contains many dishes
+    # Relationship
     items = relationship("MenuItem", back_populates="category", cascade="all, delete-orphan")
+
 
 # -------------------------------------------------------------
 # 3. Menu Items Model (Dishes, prices, photos, veg/non-veg)
@@ -65,8 +73,9 @@ class MenuItem(Base):
     image_url = Column(String(500), nullable=True)
     is_available = Column(Boolean, default=True, nullable=False)
 
-    # Relationship: Links back to its parent category
+    # Relationship
     category = relationship("Category", back_populates="items")
+
 
 # -------------------------------------------------------------
 # 4. Orders Model (Overall Purchase & Delivery Details)
@@ -81,13 +90,15 @@ class Order(Base):
     customer_phone = Column(String(20), nullable=False)
     delivery_address = Column(Text, nullable=False)
     total_amount = Column(Numeric(10, 2), nullable=False)
-    payment_method = Column(String(50), default="COD", nullable=False)
+    payment_method = Column(String(50), default="COD", nullable=False) # "COD" or "ONLINE"
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     customer = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+
 
 # -------------------------------------------------------------
 # 5. Order Items Model (Frozen Snapshots of Purchased Dishes)
@@ -99,8 +110,28 @@ class OrderItem(Base):
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
     menu_item_id = Column(Integer, ForeignKey("menu_items.id", ondelete="SET NULL"), nullable=True)
     quantity = Column(Integer, default=1, nullable=False)
-    price_per_unit = Column(Numeric(10, 2), nullable=False)  # Frozen price at purchase time
-    item_name_snapshot = Column(String(150), nullable=False) # Frozen dish name at purchase time
+    price_per_unit = Column(Numeric(10, 2), nullable=False)
+    item_name_snapshot = Column(String(150), nullable=False)
 
-    # Relationship: Links back to parent order
+    # Relationship
     order = relationship("Order", back_populates="items")
+
+
+# -------------------------------------------------------------
+# 6. Payments Model (Financial Settlements & Transaction Ledger)
+# -------------------------------------------------------------
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    transaction_id = Column(String(100), unique=True, index=True, nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(10), default="USD", nullable=False)
+    provider = Column(String(50), default="SANDBOX_GATEWAY", nullable=False)
+    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
+    signature = Column(String(255), nullable=True) # Stored HMAC verification signature
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship back to the parent order
+    order = relationship("Order", back_populates="payments")

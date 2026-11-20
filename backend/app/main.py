@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 
 # Import our modular routers (including new admin router!)
-from app.routes import menu, orders, auth, admin
+from app.routes import menu, orders, auth, admin, payments
 
 # Safe auto-creation: Creates any missing tables in MySQL on startup
 Base.metadata.create_all(bind=engine)
@@ -35,6 +35,7 @@ app.include_router(menu.router)
 app.include_router(orders.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(payments.router)
 
 
 # -------------------------------------------------------------
