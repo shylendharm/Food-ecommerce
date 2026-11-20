@@ -9,3 +9,4 @@ python-jose[cryptography]>3.3.0
 email-validator
 pytest
 httpx
+redis

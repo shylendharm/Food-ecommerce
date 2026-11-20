@@ -13,6 +13,9 @@ from app.schemas import (
 )
 from app.security import get_current_admin
 
+# Import our Redis cache invalidator
+from app.cache import invalidate_cache
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["Admin - Kitchen & Inventory Management"]
@@ -67,7 +70,7 @@ def update_order_status(
 
 
 # =============================================================
-# 2. MENU INVENTORY MANAGEMENT ENDPOINTS
+# 2. MENU INVENTORY MANAGEMENT (WITH REDIS CACHE INVALIDATION)
 # =============================================================
 
 @router.post("/menu", response_model=MenuItemResponse, status_code=status.HTTP_201_CREATED, summary="Add a new dish to the menu (Admin only)")
@@ -78,7 +81,7 @@ def create_menu_item(
 ):
     """
     Allows the restaurant manager to create and publish a new dish.
-    Validates that the parent category exists.
+    Validates parent category exists, saves to MySQL, and purges Redis cache.
     Protected: Only accessible by restaurant staff/admin.
     """
     category = db.query(Category).filter(Category.id == item_payload.category_id).first()
@@ -101,6 +104,11 @@ def create_menu_item(
     db.add(new_dish)
     db.commit()
     db.refresh(new_dish)
+
+    # 🧹 AUTOMATED CACHE PURGE:
+    # Clear all cached menu responses in Redis so customers instantly see the new dish!
+    invalidate_cache("menu:*")
+
     return new_dish
 
 
@@ -112,6 +120,7 @@ def toggle_dish_stock(
 ):
     """
     One-click toggle: If a dish was Available (True), marks it Out of Stock (False), and vice-versa.
+    Saves to MySQL and purges Redis cache so customers instantly see the updated stock status.
     Protected: Only accessible by restaurant staff/admin.
     """
     dish = db.query(MenuItem).filter(MenuItem.id == item_id).first()
@@ -121,7 +130,13 @@ def toggle_dish_stock(
             detail=f"Dish #{item_id} does not exist."
         )
 
+    # Flip the stock boolean flag
     dish.is_available = not dish.is_available
     db.commit()
     db.refresh(dish)
+
+    # 🧹 AUTOMATED CACHE PURGE:
+    # Clear all cached menu responses in Redis so customers immediately see the dish updated!
+    invalidate_cache("menu:*")
+
     return dish
