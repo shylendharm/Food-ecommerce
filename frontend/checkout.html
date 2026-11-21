@@ -83,6 +83,7 @@
                                 <span class="error-msg" id="address-error"></span>
                             </div>
 
+                            <!-- Payment Options: Both COD and Online are now active! -->
                             <div class="form-group">
                                 <label>Payment Method</label>
                                 <div class="payment-options">
@@ -91,10 +92,10 @@
                                         <span class="payment-icon">💵</span>
                                         <span class="payment-text">Cash on Delivery (COD)</span>
                                     </label>
-                                    <label class="payment-option disabled" title="Online payments coming soon!">
-                                        <input type="radio" name="payment_method" value="ONLINE" disabled>
+                                    <label class="payment-option">
+                                        <input type="radio" name="payment_method" value="ONLINE">
                                         <span class="payment-icon">💳</span>
-                                        <span class="payment-text">UPI / Card (Coming Soon)</span>
+                                        <span class="payment-text">UPI / Card (Online Sandbox)</span>
                                     </label>
                                 </div>
                             </div>
@@ -147,7 +148,74 @@
     </main>
 
     <!-- ========================================================= -->
-    <!-- 3. JAVASCRIPT IN ORDER OF DEPENDENCY                       -->
+    <!-- 3. SECURE PAYMENT GATEWAY SANDBOX MODAL                   -->
+    <!-- ========================================================= -->
+    <div id="payment-modal" class="modal-backdrop">
+        <div class="modal-dialog" style="max-width: 440px;">
+            <!-- Modal Header -->
+            <div
+                style="background: linear-gradient(135deg, #1E293B, #0F172A); color: white; padding: 20px 24px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.5rem;">🔒</span>
+                    <div>
+                        <div
+                            style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8; font-weight: 700;">
+                            Payment Gateway Sandbox</div>
+                        <div style="font-size: 1.15rem; font-weight: 800;">Secure Card Checkout</div>
+                    </div>
+                </div>
+                <button id="close-payment-modal-btn" class="modal-close-btn"
+                    style="color: #94A3B8; position: static;">&times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body" style="padding: 24px;">
+                <div
+                    style="background: #F1F5F9; border-radius: var(--radius-sm); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 600;">Total Amount:</span>
+                    <span id="payment-modal-amount"
+                        style="font-size: 1.35rem; font-weight: 800; color: var(--primary);">$0.00</span>
+                </div>
+
+                <!-- Test Card Preview -->
+                <form id="sandbox-payment-form" style="display: flex; flex-direction: column; gap: 14px;">
+                    <div class="form-field">
+                        <label for="sandbox-card-num">Test Card Number</label>
+                        <input type="text" id="sandbox-card-num" value="4111 •••• •••• 1111" readonly
+                            style="background: #F8FAFC; font-family: monospace; letter-spacing: 1px; font-weight: 600;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-field">
+                            <label>Expiry Date</label>
+                            <input type="text" value="12/28" readonly
+                                style="background: #F8FAFC; text-align: center; font-weight: 600;">
+                        </div>
+                        <div class="form-field">
+                            <label>CVV / CVC</label>
+                            <input type="password" value="888" readonly
+                                style="background: #F8FAFC; text-align: center; font-weight: 600;">
+                        </div>
+                    </div>
+
+                    <div
+                        style="background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; padding: 10px 14px; border-radius: 8px; font-size: 0.82rem; margin-top: 4px; line-height: 1.4;">
+                        ℹ️ <strong>Sandbox Test Mode:</strong> No real money is charged. Clicking below simulates the
+                        bank delivering an authentic HMAC-SHA256 signed webhook!
+                    </div>
+
+                    <button type="submit" id="btn-pay-sandbox" class="btn-auth-submit"
+                        style="background: #16A34A; margin-top: 10px; font-size: 1.05rem;">
+                        <span>Authorize & Pay</span>
+                        <span id="btn-pay-modal-amount"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- 4. JAVASCRIPT IN ORDER OF DEPENDENCY                       -->
     <!-- ========================================================= -->
     <script src="js/api.js"></script>
     <script src="js/cart.js"></script>

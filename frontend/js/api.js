@@ -230,3 +230,51 @@ async function createMenuItem(dishData) {
         body: JSON.stringify(dishData),
     });
 }
+
+/* =============================================================
+   5. PAYMENTS & FINANCIAL SETTLEMENTS API FUNCTIONS
+   ============================================================= */
+
+/**
+ * Initializes an online payment session with the gateway
+ * Calls: POST /api/payments/create-intent
+ */
+async function createPaymentIntent(orderId) {
+    return await apiRequest("/payments/create-intent", {
+        method: "POST",
+        body: JSON.stringify({ order_id: Number(orderId) }),
+    });
+}
+
+/**
+ * Simulates the Payment Gateway delivering an HMAC-signed webhook
+ * Calls: POST /api/payments/webhook
+ */
+async function triggerPaymentWebhook(webhookData, signature) {
+    const url = `${API_BASE_URL}/payments/webhook`;
+
+    // Note: X-Signature header is where the cryptographic seal travels!
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Signature": signature,
+        },
+        body: JSON.stringify(webhookData),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Payment webhook verification failed.");
+    }
+
+    return await response.json();
+}
+
+/**
+ * Retrieves the payment settlement status for an order
+ * Calls: GET /api/payments/order/{order_id}
+ */
+async function getPaymentDetails(orderId) {
+    return await apiRequest(`/payments/order/${orderId}`);
+}

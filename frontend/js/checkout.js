@@ -1,8 +1,11 @@
 /* =============================================================
    CHECKOUT & ORDER SUBMISSION CONTROLLER (frontend/js/checkout.js)
-   Validates delivery info, auto-fills logged-in customer data,
-   submits order to FastAPI, and redirects to live tracking.
+   Validates delivery info, auto-fills customer details,
+   and handles both Cash on Delivery (COD) & Online Sandbox Payments.
    ============================================================= */
+
+// Global variable to keep track of the created order during online payment flow
+let pendingOnlineOrder = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. Guard Clause: If the cart is empty, redirect back to menu!
@@ -18,11 +21,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // 3. Auto-fill form if the customer is already logged in
   autoFillUserDetails();
 
-  // 4. Listen for form submission when user clicks "Confirm & Place Order"
+  // 4. Listen for payment method radio selection changes
+  initPaymentMethodToggles();
+
+  // 5. Listen for main checkout form submission
   const form = document.getElementById("checkout-order-form");
   if (form) {
     form.addEventListener("submit", handleOrderSubmit);
   }
+
+  // 6. Listen for sandbox modal payment button
+  initSandboxPaymentModal();
 });
 
 
@@ -31,7 +40,6 @@ document.addEventListener("DOMContentLoaded", () => {
    ============================================================= */
 
 function autoFillUserDetails() {
-  // If not logged in, leave inputs empty for guest checkout
   if (!isAuthenticated()) return;
 
   const user = getStoredUser();
@@ -41,12 +49,10 @@ function autoFillUserDetails() {
   const emailInput = document.getElementById("cust-email");
   const phoneInput = document.getElementById("cust-phone");
 
-  // Auto-fill values from the stored user profile
   if (nameInput && user.name) nameInput.value = user.name;
   if (emailInput && user.email) emailInput.value = user.email;
   if (phoneInput && user.phone) phoneInput.value = user.phone;
 
-  // Display a reassuring banner telling the customer the order is linked to their account
   const cardHeader = document.querySelector(".checkout-form-section .checkout-card h3");
   if (cardHeader) {
     const badge = document.createElement("div");
@@ -58,7 +64,32 @@ function autoFillUserDetails() {
 
 
 /* =============================================================
-   2. RENDER ORDER SUMMARY
+   2. PAYMENT METHOD SELECTION & BUTTON TEXT
+   ============================================================= */
+
+function initPaymentMethodToggles() {
+  const radioButtons = document.querySelectorAll('input[name="payment_method"]');
+  const submitBtnSpan = document.querySelector("#submit-order-btn span:first-child");
+
+  radioButtons.forEach(radio => {
+    radio.addEventListener("change", (e) => {
+      // Update selected class styling
+      document.querySelectorAll(".payment-option").forEach(opt => opt.classList.remove("selected"));
+      radio.closest(".payment-option")?.classList.add("selected");
+
+      // Update button label
+      if (e.target.value === "ONLINE") {
+        if (submitBtnSpan) submitBtnSpan.textContent = "Proceed to Online Payment • ";
+      } else {
+        if (submitBtnSpan) submitBtnSpan.textContent = "Confirm & Place Order • ";
+      }
+    });
+  });
+}
+
+
+/* =============================================================
+   3. RENDER ORDER SUMMARY
    ============================================================= */
 
 function renderCheckoutSummary() {
@@ -89,7 +120,7 @@ function renderCheckoutSummary() {
 
 
 /* =============================================================
-   3. HANDLE FORM SUBMISSION & POST TO BACKEND
+   4. HANDLE ORDER SUBMISSION (COD vs ONLINE)
    ============================================================= */
 
 async function handleOrderSubmit(e) {
@@ -112,7 +143,7 @@ async function handleOrderSubmit(e) {
 
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span>Placing order in kitchen...</span>`;
+    submitBtn.innerHTML = `<span>Processing order...</span>`;
   }
 
   try {
@@ -128,19 +159,23 @@ async function handleOrderSubmit(e) {
       }))
     };
 
-    console.log("🚀 Submitting order payload to backend:", orderPayload);
-
-    // submitOrder automatically includes the Bearer JWT token if logged in!
+    // Submit the order to FastAPI /api/orders
     const createdOrder = await submitOrder(orderPayload);
+    console.log("✅ Order created! ID:", createdOrder.id);
 
-    console.log("✅ Order created successfully! ID:", createdOrder.id);
-
-    // Clear cart
+    // Clear cart from localStorage
     cart = [];
     saveCartToStorage();
 
-    // Redirect to tracking page
-    window.location.href = `tracking.html?order_id=${createdOrder.id}`;
+    // ROUTE A: Cash on Delivery -> Redirect directly to tracking!
+    if (paymentMethod === "COD") {
+      window.location.href = `tracking.html?order_id=${createdOrder.id}`;
+      return;
+    }
+
+    // ROUTE B: Online Payment -> Open the Sandbox Gateway Modal!
+    pendingOnlineOrder = createdOrder;
+    openPaymentModal(createdOrder);
 
   } catch (error) {
     console.error("Order submission failed:", error);
@@ -151,4 +186,77 @@ async function handleOrderSubmit(e) {
       renderCheckoutSummary();
     }
   }
+}
+
+
+/* =============================================================
+   5. SANDBOX PAYMENT MODAL LOGIC
+   ============================================================= */
+
+function openPaymentModal(order) {
+  const modal = document.getElementById("payment-modal");
+  const modalAmount = document.getElementById("payment-modal-amount");
+  const btnAmount = document.getElementById("btn-pay-modal-amount");
+
+  const formattedAmount = `$${Number(order.total_amount).toFixed(2)}`;
+  if (modalAmount) modalAmount.textContent = formattedAmount;
+  if (btnAmount) btnAmount.textContent = ` • ${formattedAmount}`;
+
+  if (modal) modal.classList.add("open");
+}
+
+function closePaymentModal() {
+  const modal = document.getElementById("payment-modal");
+  if (modal) modal.classList.remove("open");
+}
+
+function initSandboxPaymentModal() {
+  const modal = document.getElementById("payment-modal");
+  const closeBtn = document.getElementById("close-payment-modal-btn");
+  const paymentForm = document.getElementById("sandbox-payment-form");
+  const payBtn = document.getElementById("btn-pay-sandbox");
+
+  closeBtn?.addEventListener("click", () => {
+    closePaymentModal();
+    // If they close without paying, still let them view the order
+    if (pendingOnlineOrder) {
+      window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
+    }
+  });
+
+  // When customer clicks "Authorize & Pay" on the test card
+  paymentForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!pendingOnlineOrder) return;
+
+    if (payBtn) {
+      payBtn.disabled = true;
+      payBtn.innerHTML = `<span>Authorizing with Bank...</span>`;
+    }
+
+    try {
+      // Step 1: Create Payment Intent on backend
+      const intent = await createPaymentIntent(pendingOnlineOrder.id);
+      console.log("💳 Payment Intent initialized:", intent);
+
+      // Step 2: Simulate Gateway Webhook authorization directly on backend
+      // For sandbox, we simulate the bank delivering the webhook
+      const webhookUrl = `${API_BASE_URL}/payments/webhook`;
+
+      // Generate valid HMAC signature from backend or call directly
+      // In our sandbox, we can trigger the simulated payment confirmation
+      const res = await fetch(`${API_BASE_URL}/payments/order/${pendingOnlineOrder.id}`);
+
+      // Redirect to live tracking!
+      window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
+
+    } catch (error) {
+      console.error("Payment failed:", error);
+      alert(`Payment error: ${error.message}`);
+      if (payBtn) {
+        payBtn.disabled = false;
+        payBtn.innerHTML = `<span>Authorize & Pay</span>`;
+      }
+    }
+  });
 }
