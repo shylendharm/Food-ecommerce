@@ -1,11 +1,19 @@
+"""
+Main Application Entrypoint
+Location: backend/app/main.py
+
+Initializes the FastAPI application, configures CORS middleware,
+creates database tables, and mounts all modular API routers.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Database and metadata to ensure all tables exist
 from app.database import engine, Base
 
-# Import our modular routers (including new admin router!)
-from app.routes import menu, orders, auth, admin, payments
+# Import all modular routers (including tracking & websockets!)
+from app.routes import menu, orders, auth, admin, payments, tracking
 
 # Safe auto-creation: Creates any missing tables in MySQL on startup
 Base.metadata.create_all(bind=engine)
@@ -13,7 +21,7 @@ Base.metadata.create_all(bind=engine)
 # Initialize the master FastAPI application
 app = FastAPI(
     title="Food Ordering & Restaurant API",
-    description="Full-stack food delivery backend built with FastAPI, SQLAlchemy, and MySQL.",
+    description="Full-stack food delivery backend built with FastAPI, SQLAlchemy, Redis, and WebSockets.",
     version="1.0.0"
 )
 
@@ -36,6 +44,7 @@ app.include_router(orders.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(payments.router)
+app.include_router(tracking.router)
 
 
 # -------------------------------------------------------------

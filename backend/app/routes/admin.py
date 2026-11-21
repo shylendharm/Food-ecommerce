@@ -16,6 +16,10 @@ from app.security import get_current_admin
 # Import our Redis cache invalidator
 from app.cache import invalidate_cache
 
+# Import our Real-Time WebSocket broadcaster and Logistics engine
+from app.websocket_manager import ws_manager
+from app.logistics import compute_order_logistics
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["Admin - Kitchen & Inventory Management"]
@@ -23,7 +27,7 @@ router = APIRouter(
 
 
 # =============================================================
-# 1. KITCHEN ORDER MANAGEMENT ENDPOINTS
+# 1. KITCHEN ORDER MANAGEMENT (WITH LIVE WEBSOCKET BROADCAST)
 # =============================================================
 
 @router.get("/orders", response_model=List[OrderResponse], summary="List all restaurant orders (Admin only)")
@@ -44,8 +48,8 @@ def list_all_orders(
     return query.order_by(Order.created_at.desc()).all()
 
 
-@router.patch("/orders/{order_id}/status", response_model=OrderResponse, summary="Update an order's preparation/delivery status (Admin only)")
-def update_order_status(
+@router.patch("/orders/{order_id}/status", response_model=OrderResponse, summary="Update status & broadcast live event (Admin only)")
+async def update_order_status(
     order_id: int,
     status_payload: OrderStatusUpdate,
     db: Session = Depends(get_db),
@@ -54,7 +58,9 @@ def update_order_status(
     """
     Advances an order to the next stage:
     PENDING -> PREPARING -> OUT_FOR_DELIVERY -> DELIVERED
-    Protected: Only accessible by restaurant staff/admin.
+    1. Updates status in MySQL.
+    2. Recalculates dynamic delivery ETA.
+    3. Broadcasts real-time event to customer over WebSockets in 0ms!
     """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -63,9 +69,23 @@ def update_order_status(
             detail=f"Order #{order_id} does not exist."
         )
 
+    # 1. Update MySQL state
     order.status = status_payload.status
     db.commit()
     db.refresh(order)
+
+    # 2. Recompute real-time logistics and ETA for the new stage
+    logistics = compute_order_logistics(order.status.value, order.delivery_address)
+
+    # 3. 📡 BROADCAST TO CUSTOMER IN REAL-TIME:
+    event_payload = {
+        "event": "STATUS_UPDATE",
+        "order_id": order.id,
+        "status": order.status.value,
+        "logistics": logistics
+    }
+    await ws_manager.broadcast_order_update(order.id, event_payload)
+
     return order
 
 
@@ -105,8 +125,7 @@ def create_menu_item(
     db.commit()
     db.refresh(new_dish)
 
-    # 🧹 AUTOMATED CACHE PURGE:
-    # Clear all cached menu responses in Redis so customers instantly see the new dish!
+    # 🧹 Purge Redis cache so customers instantly see the new dish
     invalidate_cache("menu:*")
 
     return new_dish
@@ -120,7 +139,7 @@ def toggle_dish_stock(
 ):
     """
     One-click toggle: If a dish was Available (True), marks it Out of Stock (False), and vice-versa.
-    Saves to MySQL and purges Redis cache so customers instantly see the updated stock status.
+    Saves to MySQL and purges Redis cache.
     Protected: Only accessible by restaurant staff/admin.
     """
     dish = db.query(MenuItem).filter(MenuItem.id == item_id).first()
@@ -130,13 +149,11 @@ def toggle_dish_stock(
             detail=f"Dish #{item_id} does not exist."
         )
 
-    # Flip the stock boolean flag
     dish.is_available = not dish.is_available
     db.commit()
     db.refresh(dish)
 
-    # 🧹 AUTOMATED CACHE PURGE:
-    # Clear all cached menu responses in Redis so customers immediately see the dish updated!
+    # 🧹 Purge Redis cache
     invalidate_cache("menu:*")
 
     return dish

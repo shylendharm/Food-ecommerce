@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Tracking | FoodExpress</title>
+    <title>Live Order Tracking | FoodExpress</title>
 
     <!-- Google Font: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
 
+    <!-- Leaflet.js Interactive Map Engine Stylesheet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <!-- Application Global Stylesheets -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/responsive.css">
 </head>
@@ -27,7 +32,7 @@
                 <span class="brand-icon">🍕</span>
                 <span class="brand-name">Food<strong>Express</strong></span>
             </a>
-            <a href="index.html" class="back-link">Order More Food →</a>
+            <a href="index.html" class="back-link">← Order More Food</a>
         </div>
     </header>
 
@@ -37,11 +42,11 @@
     <main class="tracking-main">
         <div class="tracking-container">
 
-            <!-- Header with Order Number -->
+            <!-- Header with Order Number and Live ETA -->
             <div class="tracking-header">
-                <div class="success-badge">🎉 Order Confirmed!</div>
+                <div class="success-badge">🎉 Order Live Telemetry</div>
                 <h1>Tracking Order #<span id="display-order-id">--</span></h1>
-                <p>Estimated Delivery: <strong>30–40 Minutes</strong></p>
+                <p>Estimated Delivery: <strong id="header-eta-text">Calculating...</strong></p>
             </div>
 
             <!-- 4-Stage Progress Stepper -->
@@ -89,6 +94,32 @@
                 </div>
             </div>
 
+            <!-- ===================================================== -->
+            <!-- LIVE GPS ROUTE & TELEMETRY MAP CARD                   -->
+            <!-- ===================================================== -->
+            <div class="map-card">
+                <div class="map-header">
+                    <div>
+                        <h3 class="map-title">🗺️ Live Delivery Map</h3>
+                        <span id="map-status-desc" class="map-status-desc">
+                            Connecting to delivery telemetry...
+                        </span>
+                    </div>
+                    <div class="live-status-pill" id="ws-indicator">
+                        <span class="live-pulse-dot" id="ws-dot"></span>
+                        <span id="ws-status-text">Live Socket Active</span>
+                    </div>
+                </div>
+
+                <!-- Leaflet interactive map container -->
+                <div id="tracking-map"></div>
+
+                <div class="map-footer">
+                    <span>🍕 <strong>Kitchen:</strong> Central Bengaluru (12.9716° N, 77.5946° E)</span>
+                    <span id="map-distance-info"><strong>Distance:</strong> Calculating...</span>
+                </div>
+            </div>
+
             <!-- 2-Column Delivery Details & Itemized Receipt -->
             <div class="tracking-details-grid">
 
@@ -132,7 +163,7 @@
                             <span class="free-delivery">FREE</span>
                         </div>
                         <div class="price-row total-row">
-                            <span>Total Paid</span>
+                            <span>Total</span>
                             <span id="track-total">$0.00</span>
                         </div>
                     </div>
@@ -144,88 +175,18 @@
     </main>
 
     <!-- ========================================================= -->
-    <!-- 3. TRACKING LOGIC SCRIPT                                   -->
+    <!-- 3. EXTERNAL PRODUCTION SCRIPTS                            -->
     <!-- ========================================================= -->
+    <!-- Leaflet.js Interactive Map Engine -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Central API client (JWT tokens, HTTP fetch wrappers) -->
     <script src="js/api.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", async () => {
-            // 1. Read ?order_id=... from the URL address bar
-            const urlParams = new URLSearchParams(window.location.search);
-            const orderId = urlParams.get("order_id");
 
-            if (!orderId) {
-                alert("No order ID found. Returning to menu.");
-                window.location.href = "index.html";
-                return;
-            }
+    <!-- Dedicated Order Tracking & Real-Time WebSocket Module -->
+    <script src="js/tracking.js"></script>
 
-            document.getElementById("display-order-id").textContent = orderId;
-
-            try {
-                // 2. Fetch the authentic order from MySQL via FastAPI!
-                const order = await getOrderById(orderId);
-                console.log("📦 Order data loaded:", order);
-
-                // 3. Fill in the delivery details
-                document.getElementById("track-name").textContent = order.customer_name;
-                document.getElementById("track-phone").textContent = order.customer_phone;
-                document.getElementById("track-address").textContent = order.delivery_address;
-                document.getElementById("track-payment").textContent = order.payment_method;
-
-                // 4. Fill in the pricing
-                const formattedTotal = `$${parseFloat(order.total_amount).toFixed(2)}`;
-                document.getElementById("track-subtotal").textContent = formattedTotal;
-                document.getElementById("track-total").textContent = formattedTotal;
-
-                // 5. Render the frozen snapshot receipt rows
-                const itemsContainer = document.getElementById("track-items-list");
-                if (itemsContainer && order.items) {
-                    itemsContainer.innerHTML = order.items.map(item => `
-            <div class="receipt-item-row">
-              <div>
-                <strong>${item.item_name_snapshot}</strong>
-                <small>Qty: ${item.quantity} × $${parseFloat(item.price_per_unit).toFixed(2)}</small>
-              </div>
-              <span>$${(parseFloat(item.price_per_unit) * item.quantity).toFixed(2)}</span>
-            </div>
-          `).join("");
-                }
-
-                // 6. Update the visual 4-stage stepper
-                updateStepper(order.status);
-
-            } catch (error) {
-                console.error("Failed to load order:", error);
-                alert(`Order #${orderId} was not found in the database.`);
-                window.location.href = "index.html";
-            }
-        });
-
-        /**
-         * Highlights the stepper circles up to the current order status
-         */
-        function updateStepper(status) {
-            const stages = ["PENDING", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"];
-            const currentIndex = stages.indexOf(status);
-
-            stages.forEach((stage, idx) => {
-                const stepEl = document.getElementById(`step-${stage}`);
-                if (stepEl) {
-                    if (idx <= currentIndex) {
-                        stepEl.classList.add("active");
-                    } else {
-                        stepEl.classList.remove("active");
-                    }
-                }
-
-                // Highlight connecting lines
-                const lineEl = document.getElementById(`line-${idx}`);
-                if (lineEl && idx <= currentIndex) {
-                    lineEl.classList.add("active");
-                }
-            });
-        }
-    </script>
 </body>
 
 </html>
