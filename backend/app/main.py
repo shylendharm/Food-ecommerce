@@ -3,20 +3,15 @@ Main Application Entrypoint
 Location: backend/app/main.py
 
 Initializes the FastAPI application, configures CORS middleware,
-creates database tables, and mounts all modular API routers.
+and mounts all modular API routers.
+Database schema is managed strictly via Alembic migrations.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Database and metadata to ensure all tables exist
-from app.database import engine, Base
-
 # Import all modular routers (including tracking & websockets!)
 from app.routes import menu, orders, auth, admin, payments, tracking
-
-# Safe auto-creation: Creates any missing tables in MySQL on startup
-Base.metadata.create_all(bind=engine)
 
 # Initialize the master FastAPI application
 app = FastAPI(

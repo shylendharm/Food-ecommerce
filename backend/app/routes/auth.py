@@ -1,11 +1,22 @@
+"""
+Authentication & User Management Router
+Location: backend/app/routes/auth.py
+
+Environment-Gated Security Architecture:
+1. In Production (ENVIRONMENT=production): Sandbox mock tokens are strictly blocked (401).
+2. In Development & Testing: Sandbox tokens allow local verification of both Customer & Admin.
+3. Master Administrator: shylendharm369@gmail.com holds exclusive admin authority.
+"""
+
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import httpx
 
-# Import database provider, ORM models, and Pydantic schemas
 from app.database import get_db
-from app.models import User
-from app.schemas import UserCreate, UserLogin, UserResponse
+from app.models import User, UserRole, AuthProvider
+from app.schemas import UserCreate, UserLogin, UserResponse, GoogleAuthRequest
 from app.security import (
     hash_password,
     verify_password,
@@ -18,65 +29,122 @@ router = APIRouter(
     tags=["Authentication & Users"]
 )
 
+# STRICT WHITELIST: Only your verified Google account holds master admin authority
+ADMIN_EMAILS = {
+    "shylendharm369@gmail.com"
+}
 
-# Schema representing the successful login token response
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Register a new customer account")
-def register_user(user_payload: UserCreate, db: Session = Depends(get_db)):
+# =============================================================
+# 1. GOOGLE TOKEN VERIFIER (ENVIRONMENT-GATED)
+# =============================================================
+
+async def verify_google_token(credential: str) -> dict:
     """
-    Registers a new user:
-    1. Checks if the email is already in use.
-    2. Hashes the password using Bcrypt.
-    3. Saves the user to MySQL.
-    4. Returns safe public user info (password hash is omitted).
+    Cryptographically verifies a Google OAuth2 ID Token:
+    1. Production Guard: In production, all mock tokens are strictly rejected with 401.
+    2. Sandbox/Mock Mode: In dev/test, supports rapid local development & Pytest.
+    3. Live Mode: Verifies authentic cryptographic signature against Google's tokeninfo API.
     """
-    # Step 1: Check for duplicate email
-    existing_user = db.query(User).filter(User.email == user_payload.email).first()
-    if existing_user:
+    # Sandbox / Mock Token Support for Automated Tests & Local Development
+    if credential.startswith("mock_google_token_"):
+        # PRODUCTION LOCKOUT: Sandbox tokens are strictly forbidden in production!
+        if os.getenv("ENVIRONMENT") == "production":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sandbox mock tokens are strictly disabled in production mode."
+            )
+
+        email_part = credential.replace("mock_google_token_", "")
+        email = email_part if "@" in email_part else f"{email_part}@gmail.com"
+        return {
+            "sub": f"google_sub_{abs(hash(email))}",
+            "email": email,
+            "name": email.split("@")[0].capitalize(),
+            "picture": "https://lh3.googleusercontent.com/a/default-avatar"
+        }
+
+    # Live Google Public Token Verification
+    google_verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(google_verify_url, timeout=10.0)
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid, expired, or forged Google authentication token."
+                )
+            return resp.json()
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to reach Google OAuth2 verification servers: {exc}"
+            )
+
+
+# =============================================================
+# 2. GOOGLE OAUTH2 SINGLE SIGN-ON ENDPOINT
+# =============================================================
+
+@router.post("/google", response_model=LoginResponse, summary="Sign in or register using Google OAuth2")
+async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+    # 1. Verify Google Token and extract claims
+    google_data = await verify_google_token(payload.credential)
+
+    google_id = google_data.get("sub")
+    email = (google_data.get("email") or "").lower().strip()
+    name = google_data.get("name") or email.split("@")[0]
+    picture_url = google_data.get("picture")
+
+    if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An account with this email address already exists."
+            detail="Google account did not provide an email address."
         )
 
-    # Step 2: Hash the password securely
-    hashed_pwd = hash_password(user_payload.password)
+    # Whitelist authorization: ADMIN if email matches master admin, else CUSTOMER
+    is_authorized_admin = (email in ADMIN_EMAILS)
+    role = UserRole.ADMIN if is_authorized_admin else UserRole.CUSTOMER
 
-    # Step 3: Create the User ORM object
-    new_user = User(
-        name=user_payload.name,
-        email=user_payload.email,
-        phone=user_payload.phone,
-        password_hash=hashed_pwd
-    )
+    # 2. Check if user already exists by google_id
+    user = db.query(User).filter(User.google_id == google_id).first()
 
-    db.add(new_user)
+    # 3. If not found by google_id, check if user exists by email (Account Linking)
+    if not user:
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.google_id = google_id
+            user.picture_url = picture_url
+            user.auth_provider = AuthProvider.GOOGLE
+            if is_authorized_admin:
+                user.role = UserRole.ADMIN
+        else:
+            user = User(
+                name=name,
+                email=email,
+                google_id=google_id,
+                picture_url=picture_url,
+                auth_provider=AuthProvider.GOOGLE,
+                role=role,
+                password_hash=None
+            )
+            db.add(user)
+    else:
+        if picture_url:
+            user.picture_url = picture_url
+        if is_authorized_admin:
+            user.role = UserRole.ADMIN
+
     db.commit()
-    db.refresh(new_user)
+    db.refresh(user)
 
-    return new_user
-
-
-@router.post("/login", response_model=LoginResponse, summary="Log in and receive a JWT access token")
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """
-    Authenticates a user:
-    1. Looks up the user by email.
-    2. Verifies the password using the bcrypt hash.
-    3. Issues a signed 24-hour JWT access token.
-    """
-    user = db.query(User).filter(User.email == credentials.email).first()
-
-    if not user or not verify_password(credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password."
-        )
-
+    # 4. Issue standard backend JWT access token
     token_payload = {
         "sub": str(user.id),
         "email": user.email,
@@ -91,10 +159,58 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     }
 
 
+# =============================================================
+# 3. PROFILE RETRIEVAL ENDPOINT
+# =============================================================
+
 @router.get("/me", response_model=UserResponse, summary="Get current logged-in user profile")
 def get_my_profile(current_user: User = Depends(get_current_user)):
-    """
-    Returns the profile information of the currently authenticated user.
-    Protected endpoint: Requires a valid Bearer token!
-    """
     return current_user
+
+
+# =============================================================
+# 4. BACKWARD-COMPATIBLE LOCAL AUTH (FOR AUTOMATED TESTS)
+# =============================================================
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Register customer (Automated Tests)")
+def register_customer(user_payload: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.email == user_payload.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this email address already exists."
+        )
+
+    new_user = User(
+        name=user_payload.name,
+        email=user_payload.email,
+        phone=user_payload.phone,
+        password_hash=hash_password(user_payload.password),
+        auth_provider=AuthProvider.LOCAL
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+@router.post("/login", response_model=LoginResponse, summary="Log in with local credentials (Automated Tests)")
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == credentials.email).first()
+    if not user or not user.password_hash or not verify_password(credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
+
+    token_payload = {
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role.value
+    }
+    access_token = create_access_token(data=token_payload)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user
+    }

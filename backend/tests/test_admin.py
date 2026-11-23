@@ -1,11 +1,14 @@
 """
-Automated Test Suite: Admin Portal & Role-Based Access Control (RBAC)
+Automated Test Suite: Admin Portal, Executive Metrics, RBAC & Order Lifecycle
 Location: backend/tests/test_admin.py
 
 Verifies:
-1. 401 Unauthorized when unauthenticated users access protected endpoints.
-2. 403 Forbidden when regular customers attempt admin operations.
-3. 200 OK and 201 Created when a genuine administrator performs kitchen and menu actions.
+1. 401 Unauthorized when unauthenticated strangers attempt admin routes.
+2. 403 Forbidden when regular customers attempt admin routes.
+3. 200 OK & mathematical integrity for GET /api/admin/metrics.
+4. 200 OK & 80-dish inventory visibility for GET /api/admin/menu.
+5. 200 OK and 201 Created when master admin advances orders, adds dishes, or toggles stock.
+6. 200 OK when master admin voids/cancels an order (CANCELLED status lifecycle).
 """
 
 import pytest
@@ -14,10 +17,21 @@ from app.main import app
 
 client = TestClient(app)
 
-# Helper function: Logs in a user and returns their Authorization Bearer header
-def get_auth_header(email: str, password: str) -> dict:
-    response = client.post("/api/auth/login", json={"email": email, "password": password})
-    assert response.status_code == 200, f"Login failed for {email}: {response.text}"
+# Helper function: Obtains JWT Bearer header for regular customer via Google SSO
+def get_customer_auth_header() -> dict:
+    response = client.post("/api/auth/google", json={
+        "credential": "mock_google_token_customer@gmail.com"
+    })
+    assert response.status_code == 200, f"Customer Google login failed: {response.text}"
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+# Helper function: Obtains JWT Bearer header for master admin via Google SSO
+def get_admin_auth_header() -> dict:
+    response = client.post("/api/auth/google", json={
+        "credential": "mock_google_token_shylendharm369@gmail.com"
+    })
+    assert response.status_code == 200, f"Admin Google login failed: {response.text}"
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -43,6 +57,14 @@ def test_unauthenticated_requests_are_rejected():
     res3 = client.get("/api/admin/orders")
     assert res3.status_code == 401
 
+    # 4. Stranger calls Executive Metrics
+    res4 = client.get("/api/admin/metrics")
+    assert res4.status_code == 401
+
+    # 5. Stranger calls Admin Menu Inventory
+    res5 = client.get("/api/admin/menu")
+    assert res5.status_code == 401
+
 
 # =============================================================
 # 2. CUSTOMER RBAC TESTS (Should be 403 Forbidden on Admin routes)
@@ -50,15 +72,15 @@ def test_unauthenticated_requests_are_rejected():
 
 def test_customer_can_access_profile_and_my_orders():
     """
-    Verifies that a logged-in customer (Alice) CAN view her own profile
+    Verifies that a logged-in customer CAN view their own profile
     and order history.
     """
-    customer_headers = get_auth_header("alice@example.com", "customer123")
+    customer_headers = get_customer_auth_header()
 
     # 1. Customer checks profile
     res_me = client.get("/api/auth/me", headers=customer_headers)
     assert res_me.status_code == 200
-    assert res_me.json()["email"] == "alice@example.com"
+    assert res_me.json()["email"] == "customer@gmail.com"
     assert res_me.json()["role"] == "CUSTOMER"
 
     # 2. Customer checks their order history
@@ -69,18 +91,25 @@ def test_customer_can_access_profile_and_my_orders():
 
 def test_customer_is_forbidden_from_admin_portal():
     """
-    RBAC Security Test: A customer (Alice) trying to access the Kitchen Dashboard
-    must be stopped at the door with 403 Forbidden!
+    RBAC Security Test: A customer trying to access the Kitchen Dashboard
+    or Executive Analytics must be stopped at the door with 403 Forbidden!
     """
-    customer_headers = get_auth_header("alice@example.com", "customer123")
+    customer_headers = get_customer_auth_header()
 
-    # 1. Alice tries to list all restaurant orders
+    # 1. Customer tries to list all restaurant orders
     res_orders = client.get("/api/admin/orders", headers=customer_headers)
     assert res_orders.status_code == 403
     assert "forbidden" in res_orders.json()["detail"].lower()
 
-    # 2. Alice tries to create a dish
-    # Dynamically fetch an existing category ID
+    # 2. Customer tries to spy on Executive Metrics
+    res_metrics = client.get("/api/admin/metrics", headers=customer_headers)
+    assert res_metrics.status_code == 403
+
+    # 3. Customer tries to inspect the Admin Menu inventory endpoint
+    res_menu = client.get("/api/admin/menu", headers=customer_headers)
+    assert res_menu.status_code == 403
+
+    # 4. Customer tries to create a dish
     cat_res = client.get("/api/categories")
     valid_cat_id = cat_res.json()[0]["id"]
 
@@ -96,16 +125,76 @@ def test_customer_is_forbidden_from_admin_portal():
 
 
 # =============================================================
-# 3. GENUINE ADMIN TESTS (Should succeed with 200 / 201)
+# 3. GENUINE ADMIN TESTS (shylendharm369@gmail.com)
 # =============================================================
+
+def test_admin_metrics_telemetry():
+    """
+    Verifies that the master admin can fetch real-time restaurant metrics
+    and that all mathematical invariants hold.
+    """
+    admin_headers = get_admin_auth_header()
+
+    res = client.get("/api/admin/metrics", headers=admin_headers)
+    assert res.status_code == 200
+
+    metrics = res.json()
+    # Contract validation: All required KPI keys must exist
+    required_keys = [
+        "total_revenue", "total_orders", "pending_orders", 
+        "preparing_orders", "delivering_orders", "completed_orders", 
+        "active_kitchen_orders", "total_dishes", "out_of_stock_dishes"
+    ]
+    for key in required_keys:
+        assert key in metrics, f"Missing KPI metric key: {key}"
+
+    # Mathematical integrity assertions
+    assert isinstance(metrics["total_revenue"], (int, float))
+    assert metrics["active_kitchen_orders"] == metrics["pending_orders"] + metrics["preparing_orders"]
+    assert metrics["total_dishes"] >= 80  # All 80 seeded gourmet dishes accounted for
+    assert metrics["out_of_stock_dishes"] >= 0
+
+
+def test_admin_menu_returns_all_including_out_of_stock():
+    """
+    Verifies that GET /api/admin/menu returns all 80 dishes
+    and continues to show items even after they are marked Out of Stock.
+    """
+    admin_headers = get_admin_auth_header()
+
+    # 1. Fetch entire menu catalog via admin endpoint
+    res = client.get("/api/admin/menu", headers=admin_headers)
+    assert res.status_code == 200
+    all_dishes = res.json()
+    assert isinstance(all_dishes, list)
+    assert len(all_dishes) >= 80
+
+    # 2. Pick a dish and toggle its stock to Out of Stock
+    target_dish = all_dishes[0]
+    dish_id = target_dish["id"]
+
+    toggle_res = client.patch(f"/api/admin/menu/{dish_id}/toggle-stock", headers=admin_headers)
+    assert toggle_res.status_code == 200
+    new_stock_state = toggle_res.json()["is_available"]
+
+    # 3. Verify /api/admin/menu still lists the dish with its updated stock state
+    refreshed_menu = client.get("/api/admin/menu", headers=admin_headers).json()
+    matched = next((d for d in refreshed_menu if d["id"] == dish_id), None)
+    assert matched is not None
+    assert matched["is_available"] == new_stock_state
+
+    # 4. Clean up: Toggle it back to original state
+    client.patch(f"/api/admin/menu/{dish_id}/toggle-stock", headers=admin_headers)
+
 
 def test_admin_can_view_orders_and_update_status():
     """
-    Verifies that the restaurant manager can view orders and advance their status.
+    Verifies that the master admin can view incoming orders
+    and advance their status along the kitchen lifecycle.
     """
-    admin_headers = get_auth_header("admin@restaurant.com", "admin123")
+    admin_headers = get_admin_auth_header()
 
-    # 1. Dynamically get an existing menu item ID
+    # 1. Dynamically get an existing menu item ID from the fresh 80 dishes
     menu_res = client.get("/api/menu")
     assert menu_res.status_code == 200 and len(menu_res.json()) > 0
     valid_dish_id = menu_res.json()[0]["id"]
@@ -138,11 +227,53 @@ def test_admin_can_view_orders_and_update_status():
     assert patch_res.json()["status"] == "PREPARING"
 
 
+def test_admin_can_cancel_order():
+    """
+    Verifies that the master admin can cancel an order, that the status transitions
+    to CANCELLED in MySQL, and that it remains visible in the orders ledger.
+    """
+    admin_headers = get_admin_auth_header()
+
+    # 1. Dynamically get an existing menu item ID
+    menu_res = client.get("/api/menu")
+    assert menu_res.status_code == 200 and len(menu_res.json()) > 0
+    valid_dish_id = menu_res.json()[0]["id"]
+
+    # 2. Place an order to cancel
+    order_payload = {
+        "customer_name": "Cancel Test Customer",
+        "customer_email": "cancel_test@example.com",
+        "customer_phone": "9876543210",
+        "delivery_address": "Test Cancel Suite 99",
+        "payment_method": "COD",
+        "items": [{"menu_item_id": valid_dish_id, "quantity": 1}]
+    }
+    place_res = client.post("/api/orders", json=order_payload)
+    assert place_res.status_code == 201
+    order_id = place_res.json()["id"]
+
+    # 3. Admin cancels the order via PATCH /api/admin/orders/{id}/status
+    cancel_res = client.patch(
+        f"/api/admin/orders/{order_id}/status",
+        json={"status": "CANCELLED"},
+        headers=admin_headers
+    )
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "CANCELLED"
+
+    # 4. Verify orders list reflects CANCELLED status
+    list_res = client.get("/api/admin/orders", headers=admin_headers)
+    assert list_res.status_code == 200
+    matched_order = next((o for o in list_res.json() if o["id"] == order_id), None)
+    assert matched_order is not None
+    assert matched_order["status"] == "CANCELLED"
+
+
 def test_admin_can_add_dish_and_toggle_stock():
     """
-    Verifies that the admin can publish a new dish and toggle its in-stock status.
+    Verifies that the master admin can publish a new dish and toggle its in-stock status.
     """
-    admin_headers = get_auth_header("admin@restaurant.com", "admin123")
+    admin_headers = get_admin_auth_header()
 
     # 1. Dynamically get a valid category ID from MySQL
     cat_res = client.get("/api/categories")

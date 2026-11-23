@@ -1,3 +1,14 @@
+"""
+Admin - Kitchen Operations & Inventory Management Router
+Location: backend/app/routes/admin.py
+
+Provides:
+1. Real-time KPI metrics calculation (/metrics).
+2. Full kitchen order management with WebSocket event broadcasts (/orders).
+3. Complete 80-dish inventory management with Redis cache invalidation (/menu).
+"""
+
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -27,7 +38,51 @@ router = APIRouter(
 
 
 # =============================================================
-# 1. KITCHEN ORDER MANAGEMENT (WITH LIVE WEBSOCKET BROADCAST)
+# 1. REAL-TIME EXECUTIVE METRICS (KPIs)
+# =============================================================
+
+@router.get("/metrics", summary="Get executive real-time restaurant metrics (Admin only)")
+def get_admin_metrics(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    Computes real-time operational and financial health metrics:
+    1. Total revenue earned from completed orders ($).
+    2. Active tickets currently being cooked in the kitchen.
+    3. Orders currently on the road with delivery riders.
+    4. Out-of-stock dish counts across the 80-item menu.
+    """
+    # 1. Revenue from delivered orders
+    delivered_orders = db.query(Order).filter(Order.status == OrderStatus.DELIVERED).all()
+    total_revenue = sum([o.total_amount for o in delivered_orders], Decimal("0.00"))
+
+    # 2. Stage counts
+    total_orders = db.query(Order).count()
+    pending_orders = db.query(Order).filter(Order.status == OrderStatus.PENDING).count()
+    preparing_orders = db.query(Order).filter(Order.status == OrderStatus.PREPARING).count()
+    delivering_orders = db.query(Order).filter(Order.status == OrderStatus.OUT_FOR_DELIVERY).count()
+    completed_orders = len(delivered_orders)
+
+    # 3. Inventory health
+    total_dishes = db.query(MenuItem).count()
+    out_of_stock_dishes = db.query(MenuItem).filter(MenuItem.is_available == False).count()
+
+    return {
+        "total_revenue": float(total_revenue),
+        "total_orders": total_orders,
+        "pending_orders": pending_orders,
+        "preparing_orders": preparing_orders,
+        "delivering_orders": delivering_orders,
+        "completed_orders": completed_orders,
+        "active_kitchen_orders": pending_orders + preparing_orders,
+        "total_dishes": total_dishes,
+        "out_of_stock_dishes": out_of_stock_dishes
+    }
+
+
+# =============================================================
+# 2. KITCHEN ORDER MANAGEMENT (WITH LIVE WEBSOCKET BROADCAST)
 # =============================================================
 
 @router.get("/orders", response_model=List[OrderResponse], summary="List all restaurant orders (Admin only)")
@@ -90,8 +145,20 @@ async def update_order_status(
 
 
 # =============================================================
-# 2. MENU INVENTORY MANAGEMENT (WITH REDIS CACHE INVALIDATION)
+# 3. COMPLETE 80-DISH INVENTORY MANAGEMENT (ADMIN FULL ACCESS)
 # =============================================================
+
+@router.get("/menu", response_model=List[MenuItemResponse], summary="List all dishes including out-of-stock (Admin only)")
+def list_admin_menu(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    Returns the complete inventory of all dishes (both in-stock and sold-out).
+    Used by the Admin Inventory Management table.
+    """
+    return db.query(MenuItem).order_by(MenuItem.category_id.asc(), MenuItem.name.asc()).all()
+
 
 @router.post("/menu", response_model=MenuItemResponse, status_code=status.HTTP_201_CREATED, summary="Add a new dish to the menu (Admin only)")
 def create_menu_item(

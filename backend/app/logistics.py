@@ -97,6 +97,7 @@ def calculate_delivery_eta(
     - PREPARING: Half Cooking Time + Travel Time + Buffer
     - OUT_FOR_DELIVERY: Travel Time + Buffer (Food is already on the bike!)
     - DELIVERED: 0 mins (Order completed)
+    - CANCELLED: 0 mins (Order voided)
     """
     # Transit time: (distance / speed) * 60 minutes
     transit_time_mins = (distance_km / AVERAGE_BIKE_SPEED_KMH) * 60.0
@@ -113,6 +114,9 @@ def calculate_delivery_eta(
     elif order_status == "DELIVERED":
         eta_mins = 0.0
         message = "Order delivered. Enjoy your meal!"
+    elif order_status == "CANCELLED":
+        eta_mins = 0.0
+        message = "This order has been cancelled."
     else:
         eta_mins = transit_time_mins + BASE_COOKING_TIME_MINS
         message = "Processing order."

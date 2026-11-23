@@ -22,9 +22,12 @@ from app.cache import (
 
 client = TestClient(app)
 
+# Helper function: Obtains JWT Bearer header for master admin via Google SSO
 def get_admin_auth_header() -> dict:
-    response = client.post("/api/auth/login", json={"email": "admin@restaurant.com", "password": "admin123"})
-    assert response.status_code == 200
+    response = client.post("/api/auth/google", json={
+        "credential": "mock_google_token_shylendharm369@gmail.com"
+    })
+    assert response.status_code == 200, f"Admin login failed: {response.text}"
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -40,7 +43,7 @@ def test_redis_connection_and_basic_crud():
     assert is_redis_healthy() is True
 
     test_key = "test:food_key"
-    test_payload = {"status": "ok", "dish_count": 8}
+    test_payload = {"status": "ok", "dish_count": 80}
 
     # Set cache with 60 second TTL
     assert set_cache(test_key, test_payload, ttl_seconds=60) is True
@@ -48,7 +51,7 @@ def test_redis_connection_and_basic_crud():
     # Read back from Redis
     cached = get_cache(test_key)
     assert cached is not None
-    assert cached["dish_count"] == 8
+    assert cached["dish_count"] == 80
 
     # Invalidate / Purge
     assert invalidate_cache("test:*") >= 1
@@ -98,7 +101,7 @@ def test_admin_stock_toggle_invalidates_cache():
     """
     Verifies Cache Invalidation:
     1. Warm up cache so 'menu:cat_all:veg_all' exists in Redis.
-    2. Admin toggles dish stock -> Redis cache must be purged!
+    2. Admin (shylendharm369@gmail.com) toggles dish stock -> Redis cache must be purged!
     3. Confirms 'menu:cat_all:veg_all' is evaporated from Redis.
     """
     # 1. Warm up cache

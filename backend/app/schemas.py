@@ -1,8 +1,17 @@
+"""
+Pydantic Request & Response Validation Schemas
+Location: backend/app/schemas.py
+
+Validates API inputs and serializes database outputs across
+Categories, Menu Items, Orders, Users, Payments, and Google OAuth2 SSO.
+"""
+
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
-from app.models import UserRole, OrderStatus, PaymentStatus
+from app.models import UserRole, OrderStatus, PaymentStatus, AuthProvider
+
 
 # =============================================================
 # 1. CATEGORY SCHEMAS
@@ -67,7 +76,7 @@ class OrderCreate(BaseModel):
     customer_phone: str = Field(..., min_length=10, max_length=15, example="9876543210")
     delivery_address: str = Field(..., min_length=5, example="Flat 402, Sunshine Apartments, Bengaluru")
     payment_method: str = Field(default="COD", example="COD")
-    items: List[OrderItemCreate] = Field(..., min_items=1)
+    items: List[OrderItemCreate] = Field(..., min_length=1)
 
 class OrderStatusUpdate(BaseModel):
     status: OrderStatus = Field(..., example="PREPARING")
@@ -90,7 +99,7 @@ class OrderResponse(BaseModel):
 
 
 # =============================================================
-# 5. USER & AUTH SCHEMAS
+# 5. USER & AUTH SCHEMAS (Including Google OAuth2)
 # =============================================================
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2)
@@ -102,12 +111,18 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+# Payload sent by frontend when customer clicks 'Sign in with Google':
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services")
+
 class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
-    phone: Optional[str]
+    phone: Optional[str] = None
     role: UserRole
+    auth_provider: AuthProvider = AuthProvider.LOCAL
+    picture_url: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -117,11 +132,9 @@ class UserResponse(BaseModel):
 # =============================================================
 # 6. PAYMENT SCHEMAS
 # =============================================================
-# Request from frontend to start an online payment session:
 class PaymentIntentCreate(BaseModel):
     order_id: int = Field(..., example=1)
 
-# Response returned to frontend to open the payment modal:
 class PaymentIntentResponse(BaseModel):
     order_id: int
     transaction_id: str
@@ -129,7 +142,6 @@ class PaymentIntentResponse(BaseModel):
     currency: str
     key_id: str
 
-# Payload sent by the Payment Gateway Webhook:
 class PaymentWebhookPayload(BaseModel):
     event: str = Field(..., example="payment.captured")
     transaction_id: str = Field(..., example="txn_sim_123456")
@@ -137,7 +149,6 @@ class PaymentWebhookPayload(BaseModel):
     amount: Decimal = Field(..., example=34.99)
     status: PaymentStatus = Field(..., example="SUCCESS")
 
-# Full payment ledger record from MySQL:
 class PaymentResponse(BaseModel):
     id: int
     order_id: int
