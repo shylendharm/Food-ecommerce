@@ -10,3 +10,4 @@ email-validator
 pytest
 httpx
 redis
+alembic>=1.13.0
