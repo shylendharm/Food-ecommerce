@@ -1,46 +1,58 @@
 /* =============================================================
    CHECKOUT & ORDER SUBMISSION CONTROLLER (frontend/js/checkout.js)
-   Validates delivery info, auto-fills customer details,
+   Validates delivery info, enforces mandatory Google SSO,
+   auto-fills customer details, remembers saved address,
    and handles both Cash on Delivery (COD) & Online Sandbox Payments.
    ============================================================= */
+
+// Key name used to remember delivery address across sessions
+const SAVED_ADDRESS_KEY = "foodexpress_saved_address";
 
 // Global variable to keep track of the created order during online payment flow
 let pendingOnlineOrder = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Guard Clause: If the cart is empty, redirect back to menu!
+  // 1. Guard Clause A: If the cart is empty, redirect back to menu!
   if (!cart || cart.length === 0) {
     alert("Your shopping cart is empty! Redirecting you to the menu.");
     window.location.href = "index.html";
     return;
   }
 
-  // 2. Render the order summary on the right side
+  // 2. Guard Clause B: Mandatory Google Sign-In Gate!
+  if (typeof isAuthenticated === "function" && !isAuthenticated()) {
+    sessionStorage.setItem("post_login_redirect", "checkout.html");
+    alert("Please sign in with your Google account to proceed with your order.");
+    window.location.href = "index.html";
+    return;
+  }
+
+  // 3. Render the order summary on the right side
   renderCheckoutSummary();
 
-  // 3. Auto-fill form if the customer is already logged in
+  // 4. Auto-fill form from Google profile and restore saved address
   autoFillUserDetails();
 
-  // 4. Listen for payment method radio selection changes
+  // 5. Listen for payment method radio selection changes
   initPaymentMethodToggles();
 
-  // 5. Listen for main checkout form submission
+  // 6. Listen for main checkout form submission
   const form = document.getElementById("checkout-order-form");
   if (form) {
     form.addEventListener("submit", handleOrderSubmit);
   }
 
-  // 6. Listen for sandbox modal payment button
+  // 7. Listen for sandbox modal payment button
   initSandboxPaymentModal();
 });
 
 
 /* =============================================================
-   1. AUTO-FILL LOGGED-IN CUSTOMER DATA
+   1. AUTO-FILL LOGGED-IN CUSTOMER DATA & SAVED ADDRESS
    ============================================================= */
 
 function autoFillUserDetails() {
-  if (!isAuthenticated()) return;
+  if (typeof isAuthenticated !== "function" || !isAuthenticated()) return;
 
   const user = getStoredUser();
   if (!user) return;
@@ -48,16 +60,26 @@ function autoFillUserDetails() {
   const nameInput = document.getElementById("cust-name");
   const emailInput = document.getElementById("cust-email");
   const phoneInput = document.getElementById("cust-phone");
+  const addressInput = document.getElementById("cust-address");
 
+  // Auto-fill Google Profile Identity
   if (nameInput && user.name) nameInput.value = user.name;
   if (emailInput && user.email) emailInput.value = user.email;
   if (phoneInput && user.phone) phoneInput.value = user.phone;
 
+  // Restore remembered delivery address from localStorage
+  const savedAddress = localStorage.getItem(SAVED_ADDRESS_KEY);
+  if (addressInput && savedAddress && !addressInput.value) {
+    addressInput.value = savedAddress;
+  }
+
+  // Visual banner confirming authenticated order linkage
   const cardHeader = document.querySelector(".checkout-form-section .checkout-card h3");
-  if (cardHeader) {
+  if (cardHeader && !document.getElementById("auth-linked-badge")) {
     const badge = document.createElement("div");
+    badge.id = "auth-linked-badge";
     badge.style.cssText = "background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; padding: 10px 14px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 8px;";
-    badge.innerHTML = `<span>👤</span><span>Logged in as <strong>${user.name}</strong> (${user.email}). This order will be linked to your account!</span>`;
+    badge.innerHTML = `<span>Ordering as <strong>${user.name}</strong> (${user.email}). Live GPS tracking will be linked to your account!</span>`;
     cardHeader.insertAdjacentElement("afterend", badge);
   }
 }
@@ -141,6 +163,9 @@ async function handleOrderSubmit(e) {
     return;
   }
 
+  // Remember address in localStorage for subsequent fast checkout
+  localStorage.setItem(SAVED_ADDRESS_KEY, addressInput);
+
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = `<span>Processing order...</span>`;
@@ -161,13 +186,13 @@ async function handleOrderSubmit(e) {
 
     // Submit the order to FastAPI /api/orders
     const createdOrder = await submitOrder(orderPayload);
-    console.log("✅ Order created! ID:", createdOrder.id);
+    console.log(" Order created! ID:", createdOrder.id);
 
-    // Clear cart from localStorage
+    // Clear cart from localStorage and memory
     cart = [];
-    saveCartToStorage();
+    if (typeof saveCartToStorage === "function") saveCartToStorage();
 
-    // ROUTE A: Cash on Delivery -> Redirect directly to tracking!
+    // ROUTE A: Cash on Delivery -> Redirect directly to live GPS tracking!
     if (paymentMethod === "COD") {
       window.location.href = `tracking.html?order_id=${createdOrder.id}`;
       return;
@@ -237,17 +262,9 @@ function initSandboxPaymentModal() {
     try {
       // Step 1: Create Payment Intent on backend
       const intent = await createPaymentIntent(pendingOnlineOrder.id);
-      console.log("💳 Payment Intent initialized:", intent);
+      console.log(" Payment Intent initialized:", intent);
 
-      // Step 2: Simulate Gateway Webhook authorization directly on backend
-      // For sandbox, we simulate the bank delivering the webhook
-      const webhookUrl = `${API_BASE_URL}/payments/webhook`;
-
-      // Generate valid HMAC signature from backend or call directly
-      // In our sandbox, we can trigger the simulated payment confirmation
-      const res = await fetch(`${API_BASE_URL}/payments/order/${pendingOnlineOrder.id}`);
-
-      // Redirect to live tracking!
+      // Step 2: Redirect to live tracking!
       window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
 
     } catch (error) {

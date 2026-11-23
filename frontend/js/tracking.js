@@ -7,7 +7,7 @@
    2. Initializes Leaflet.js with Esri World Street Map (No API Key & No Watermark).
    3. Draws route polyline and custom emoji markers (Restaurant, Customer, Rider).
    4. Connects to the full-duplex WebSocket channel (/ws/orders/{id}).
-   5. Listens for live kitchen broadcasts and animates the map, ETA, and stepper in 0ms!
+   5. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
    ============================================================= */
 
 // Global holders for Leaflet map elements and WebSocket connection
@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         // 2. Fetch the authentic order record from MySQL via FastAPI REST
         const order = await getOrderById(orderId);
-        console.log("📦 Order data loaded from MySQL:", order);
+        console.log(" Order data loaded from MySQL:", order);
 
         // 3. Populate customer delivery details
         document.getElementById("track-name").textContent = order.customer_name;
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 6. Fetch initial logistics coordinates, distance, and dynamic ETA
         const logisticsRes = await fetch(`http://localhost:8000/api/orders/${orderId}/logistics`);
         const logisticsData = await logisticsRes.json();
-        console.log("📍 Initial Logistics Telemetry:", logisticsData);
+        console.log(" Initial Logistics Telemetry:", logisticsData);
 
         // 7. Mount the Leaflet map and place markers
         initLeafletMap(order, logisticsData.logistics);
@@ -115,21 +115,21 @@ function initLeafletMap(order, logistics) {
     // 3. Custom Emoji Icons using Leaflet's L.divIcon
     const kitchenIcon = L.divIcon({
         className: 'custom-map-icon icon-kitchen',
-        html: '🍕',
+        html: '<span class="map-pin-badge kitchen-pin">K</span>',
         iconSize: [36, 36],
         iconAnchor: [18, 18]
     });
 
     const customerIcon = L.divIcon({
         className: 'custom-map-icon icon-customer',
-        html: '🏠',
+        html: '<span class="map-pin-badge customer-pin">C</span>',
         iconSize: [36, 36],
         iconAnchor: [18, 18]
     });
 
     const riderIcon = L.divIcon({
         className: 'custom-map-icon icon-rider',
-        html: '🛵',
+        html: '<span class="map-pin-badge rider-pin">R</span>',
         iconSize: [42, 42],
         iconAnchor: [21, 21]
     });
@@ -152,10 +152,12 @@ function initLeafletMap(order, logistics) {
     }).addTo(map);
 
     // 6. Compute initial rider position based on current order status
-    const initialRiderCoords = calculateRiderPosition(order.status, restCoords, custCoords);
-    riderMarker = L.marker(initialRiderCoords, { icon: riderIcon })
-        .addTo(map)
-        .bindPopup("<b>Delivery Partner</b><br>On the move");
+    if (order.status !== "CANCELLED") {
+        const initialRiderCoords = calculateRiderPosition(order.status, restCoords, custCoords);
+        riderMarker = L.marker(initialRiderCoords, { icon: riderIcon })
+            .addTo(map)
+            .bindPopup("<b>Delivery Partner</b><br>On the move");
+    }
 
     // 7. Auto-fit camera bounds so the entire route is neatly framed
     map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
@@ -167,15 +169,12 @@ function initLeafletMap(order, logistics) {
  */
 function calculateRiderPosition(status, restCoords, custCoords) {
     if (status === "PENDING" || status === "PREPARING") {
-        // Food is still cooking: Rider is stationed at the kitchen
         return restCoords;
     } else if (status === "OUT_FOR_DELIVERY") {
-        // Food is on the move: Interpolate rider 65% along the way to customer
         const lat = restCoords[0] + (custCoords[0] - restCoords[0]) * 0.65;
         const lon = restCoords[1] + (custCoords[1] - restCoords[1]) * 0.65;
         return [lat, lon];
     } else if (status === "DELIVERED") {
-        // Delivery completed: Rider has arrived at customer's doorstep
         return custCoords;
     }
     return restCoords;
@@ -186,42 +185,46 @@ function calculateRiderPosition(status, restCoords, custCoords) {
 // 3. REAL-TIME WEBSOCKET CLIENT & AUTO-RECONNECT
 // =============================================================
 
-/**
- * Connects to FastAPI's live WebSocket endpoint (/ws/orders/{order_id})
- * and listens for live status broadcasts emitted by the kitchen!
- */
 function connectTrackingWebSocket(orderId) {
     const wsUrl = `ws://localhost:8000/ws/orders/${orderId}`;
-    console.log(`🔌 Initiating WebSocket handshake with: ${wsUrl}`);
+    console.log(` Initiating WebSocket handshake with: ${wsUrl}`);
 
     socket = new WebSocket(wsUrl);
 
-    // Event: Connection established
     socket.onopen = () => {
-        console.log("⚡ WebSocket connection established! Streaming live events.");
+        console.log(" WebSocket connection established! Streaming live events.");
         document.getElementById("ws-status-text").textContent = "Live Socket Active";
         document.getElementById("ws-dot").style.background = "#22C55E";
     };
 
-    // Event: Incoming real-time message from server
     socket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log("📡 Live event received from server:", data);
+            console.log(" Live event received from server:", data);
 
             if (data.event === "INITIAL_STATE" || data.event === "STATUS_UPDATE") {
                 const newStatus = data.status;
                 const logistics = data.logistics;
 
-                // Instantly update stepper, ETA, badge, and metrics
+                // Instantly update stepper, ETA, badge, and cancellation UI
                 updateUIState(newStatus, logistics);
 
-                // Smoothly glide the scooter marker across the map!
-                if (riderMarker && logistics) {
-                    const restCoords = [logistics.restaurant_coordinates.lat, logistics.restaurant_coordinates.lon];
-                    const custCoords = [logistics.customer_coordinates.lat, logistics.customer_coordinates.lon];
-                    const newRiderCoords = calculateRiderPosition(newStatus, restCoords, custCoords);
-                    riderMarker.setLatLng(newRiderCoords);
+                // Smoothly glide or remove the scooter marker
+                if (map) {
+                    if (newStatus === "CANCELLED") {
+                        if (riderMarker && map.hasLayer(riderMarker)) {
+                            map.removeLayer(riderMarker);
+                        }
+                    } else if (logistics) {
+                        const restCoords = [logistics.restaurant_coordinates.lat, logistics.restaurant_coordinates.lon];
+                        const custCoords = [logistics.customer_coordinates.lat, logistics.customer_coordinates.lon];
+                        const newRiderCoords = calculateRiderPosition(newStatus, restCoords, custCoords);
+
+                        if (riderMarker) {
+                            if (!map.hasLayer(riderMarker)) riderMarker.addTo(map);
+                            riderMarker.setLatLng(newRiderCoords);
+                        }
+                    }
                 }
             }
         } catch (e) {
@@ -229,20 +232,17 @@ function connectTrackingWebSocket(orderId) {
         }
     };
 
-    // Event: Socket error
     socket.onerror = (err) => {
-        console.error("❌ WebSocket error:", err);
+        console.error(" WebSocket error:", err);
         document.getElementById("ws-status-text").textContent = "Socket Disconnected";
         document.getElementById("ws-dot").style.background = "#EF4444";
     };
 
-    // Event: Socket closed (server restart or network blip)
     socket.onclose = () => {
-        console.warn("⚠️ WebSocket connection closed. Retrying in 5 seconds...");
+        console.warn(" WebSocket connection closed. Retrying in 5 seconds...");
         document.getElementById("ws-status-text").textContent = "Reconnecting...";
         document.getElementById("ws-dot").style.background = "#F59E0B";
 
-        // Fault-Tolerant Reconnect Loop
         setTimeout(() => {
             connectTrackingWebSocket(orderId);
         }, 5000);
@@ -255,23 +255,102 @@ function connectTrackingWebSocket(orderId) {
 // =============================================================
 
 /**
- * Updates visual stepper, dynamic ETA, and descriptive status messages
+ * Updates visual stepper, dynamic ETA, and handles CANCELLED state
  */
 function updateUIState(status, logistics) {
-    // 1. Advance 4-Stage Stepper
+    const headerEta = document.getElementById("header-eta-text");
+    const topBadge = document.querySelector(".tracking-header .success-badge");
+    const stepperCard = document.querySelector(".stepper-card");
+    const wsDot = document.getElementById("ws-dot");
+    const wsStatusText = document.getElementById("ws-status-text");
+
+    // =========================================================
+    // CASE A: ORDER IS CANCELLED
+    // =========================================================
+    if (status === "CANCELLED") {
+        // 1. Update Top Hero Badge
+        if (topBadge) {
+            topBadge.textContent = "Order Cancelled";
+            topBadge.style.cssText = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
+        }
+
+        // 2. Update Header ETA text
+        if (headerEta) {
+            headerEta.innerHTML = `<span style="color: #DC2626; font-weight: 700;">Order Cancelled by Restaurant</span>`;
+        }
+
+        // 3. Render or display the cancellation alert banner
+        let banner = document.getElementById("order-cancellation-banner");
+        if (!banner && stepperCard) {
+            banner = document.createElement("div");
+            banner.id = "order-cancellation-banner";
+            banner.className = "order-cancelled-banner";
+            banner.innerHTML = `
+                
+                <div>
+                    <div style="font-size: 1.05rem; font-weight: 800;">This Order Has Been Cancelled</div>
+                    <div style="font-size: 0.88rem; opacity: 0.9; margin-top: 3px;">
+                        The restaurant voided this order. If you paid online via our Sandbox Gateway, your refund will be automatically credited.
+                    </div>
+                </div>
+            `;
+            stepperCard.insertAdjacentElement("beforebegin", banner);
+        }
+
+        // 4. Dim the stepper to indicate inactivity
+        if (stepperCard) {
+            stepperCard.style.opacity = "0.4";
+            stepperCard.style.filter = "grayscale(80%)";
+        }
+        updateStepper(null);
+
+        // 5. Update Map descriptions
+        document.getElementById("map-status-desc").textContent = "Order cancelled. Courier dispatch halted.";
+        document.getElementById("map-distance-info").innerHTML = `<strong style="color: #DC2626;">Dispatch Status: Voided</strong>`;
+
+        if (wsStatusText) wsStatusText.textContent = "Order Inactive";
+        if (wsDot) wsDot.style.background = "#64748B";
+
+        return;
+    }
+
+    // =========================================================
+    // CASE B: ACTIVE / DELIVERED ORDER
+    // =========================================================
+
+    // Clean up any cancellation banner if status was refreshed
+    const existingBanner = document.getElementById("order-cancellation-banner");
+    if (existingBanner) existingBanner.remove();
+
+    if (stepperCard) {
+        stepperCard.style.opacity = "1";
+        stepperCard.style.filter = "none";
+    }
+
+    // Update Top Hero Badge
+    if (topBadge) {
+        if (status === "DELIVERED") {
+            topBadge.textContent = "Delivery Complete";
+            topBadge.style.cssText = "background: #DCFCE7; color: #166534; border: 1px solid #86EFAC;";
+        } else {
+            topBadge.textContent = "Order Live Telemetry";
+            topBadge.style.cssText = "";
+        }
+    }
+
+    // Advance 4-Stage Stepper
     updateStepper(status);
 
     if (!logistics) return;
 
-    // 2. Update Header ETA text
-    const headerEta = document.getElementById("header-eta-text");
+    // Update Header ETA text
     if (status === "DELIVERED") {
-        headerEta.innerHTML = `<span style="color: #16A34A;">Delivered! Enjoy your meal! 🎉</span>`;
+        headerEta.innerHTML = `<span style="color: #16A34A; font-weight: 700;">Delivered! Enjoy your meal!</span>`;
     } else {
         headerEta.textContent = `~${logistics.estimated_minutes} Minutes (${logistics.distance_km} km away)`;
     }
 
-    // 3. Update Map Subtitle and Distance Footer
+    // Update Map Subtitle and Distance Footer
     document.getElementById("map-status-desc").textContent = logistics.status_message;
     document.getElementById("map-distance-info").innerHTML = `
         <strong>Haversine Distance:</strong> ${logistics.distance_km} km • <strong>ETA:</strong> ${logistics.estimated_minutes} mins
@@ -283,13 +362,13 @@ function updateUIState(status, logistics) {
  */
 function updateStepper(status) {
     const stages = ["PENDING", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"];
-    const currentIndex = stages.indexOf(status);
+    const currentIndex = status ? stages.indexOf(status) : -1;
 
     // Update Circle Badges
     stages.forEach((stage, idx) => {
         const stepEl = document.getElementById(`step-${stage}`);
         if (stepEl) {
-            if (idx <= currentIndex) {
+            if (currentIndex !== -1 && idx <= currentIndex) {
                 stepEl.classList.add("active");
             } else {
                 stepEl.classList.remove("active");
@@ -301,7 +380,7 @@ function updateStepper(status) {
     for (let i = 1; i <= 3; i++) {
         const lineEl = document.getElementById(`line-${i}`);
         if (lineEl) {
-            if (currentIndex >= i) {
+            if (currentIndex !== -1 && currentIndex >= i) {
                 lineEl.classList.add("active");
             } else {
                 lineEl.classList.remove("active");

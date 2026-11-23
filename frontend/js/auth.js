@@ -1,7 +1,7 @@
 /* =============================================================
    AUTHENTICATION & NAVBAR CONTROLLER (frontend/js/auth.js)
    Manages pure Google OAuth2 SSO, role-based navigation routing,
-   and role-specific profile dropdown states.
+   profile dropdowns, and post-login auto-routing to checkout.
    ============================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -29,7 +29,7 @@ function initAuthNavbar() {
         // --- 1. GUEST STATE: Render "Sign In" button ---
         authNavContainer.innerHTML = `
             <button id="open-auth-btn" class="btn-login">
-                <span>👤</span>
+                
                 <span>Sign In</span>
             </button>
         `;
@@ -66,7 +66,7 @@ function initAuthNavbar() {
                 <div class="dropdown-divider"></div>
 
                 <button id="logout-btn" class="dropdown-item logout">
-                    <span>🚪</span>
+                    
                     <span>Sign Out</span>
                 </button>
             `;
@@ -78,20 +78,20 @@ function initAuthNavbar() {
                     <div class="dropdown-user-email">${user?.email || ""}</div>
                     ${user?.auth_provider === "GOOGLE" ? `
                         <div style="font-size: 0.72rem; color: #4285F4; margin-top: 4px; font-weight: 600;">
-                            🔵 Verified Google Account
+                            Verified Google Account
                         </div>
                     ` : ""}
                 </div>
 
                 <a href="my-orders.html" class="dropdown-item">
-                    <span>📦</span>
+                    
                     <span>My Orders</span>
                 </a>
 
                 <div class="dropdown-divider"></div>
 
                 <button id="logout-btn" class="dropdown-item logout">
-                    <span>🚪</span>
+                    
                     <span>Sign Out</span>
                 </button>
             `;
@@ -189,14 +189,22 @@ window.handleGoogleCredentialResponse = async function (response) {
         const data = await loginWithGoogle(response.credential);
         closeAuthModal();
 
-        // If authenticated as ADMIN, route directly to the Kitchen Operations portal
+        // 1. If authenticated as ADMIN, route directly to the Kitchen Operations portal
         if (data.user && data.user.role === "ADMIN") {
             window.location.href = "admin.html";
             return;
         }
 
+        // 2. Post-Login Auto-Routing: If user came from clicking "Proceed to Checkout", route to checkout
+        const postLoginRedirect = sessionStorage.getItem("post_login_redirect");
+        if (postLoginRedirect) {
+            sessionStorage.removeItem("post_login_redirect");
+            window.location.href = postLoginRedirect;
+            return;
+        }
+
         initAuthNavbar();
-        console.log("✅ Authenticated via Google Identity Services");
+        console.log(" Authenticated via Google Identity Services");
     } catch (error) {
         showAuthError(error.message || "Google Single Sign-On failed.");
     }
@@ -230,14 +238,22 @@ async function handleGoogleSignIn() {
         const data = await loginWithGoogle(mockCredential);
         closeAuthModal();
 
-        // If authenticated as ADMIN, route directly to the Kitchen Operations portal
+        // 1. If authenticated as ADMIN, route directly to the Kitchen Operations portal
         if (data.user && data.user.role === "ADMIN") {
             window.location.href = "admin.html";
             return;
         }
 
+        // 2. Post-Login Auto-Routing: If user was trying to checkout, route immediately
+        const postLoginRedirect = sessionStorage.getItem("post_login_redirect");
+        if (postLoginRedirect) {
+            sessionStorage.removeItem("post_login_redirect");
+            window.location.href = postLoginRedirect;
+            return;
+        }
+
         initAuthNavbar();
-        console.log(`✅ Logged in successfully via Google SSO as: ${sanitizedEmail} (Role: ${data.user.role})`);
+        console.log(` Logged in successfully via Google SSO as: ${sanitizedEmail} (Role: ${data.user.role})`);
     } catch (error) {
         showAuthError(error.message || "Google authentication failed.");
     }
@@ -248,18 +264,30 @@ async function handleGoogleSignIn() {
    4. MODAL & UI HELPERS
    ============================================================= */
 
-// Opens the Google SSO modal
-function openAuthModal() {
+const DEFAULT_SSO_SUBTITLE = "Sign in with your verified Google account to track live orders and manage your deliveries.";
+
+// Opens the Google SSO modal with optional custom instruction subtitle
+function openAuthModal(customSubtitle = null) {
     const modal = document.getElementById("auth-modal");
     if (!modal) return;
     showAuthError(null);
+
+    const subtitleEl = modal.querySelector(".sso-subtitle");
+    if (subtitleEl) {
+        subtitleEl.textContent = customSubtitle || DEFAULT_SSO_SUBTITLE;
+    }
+
     modal.classList.add("open");
 }
 
-// Closes the modal
+// Closes the modal and resets subtitle back to default
 function closeAuthModal() {
     const modal = document.getElementById("auth-modal");
-    if (modal) modal.classList.remove("open");
+    if (modal) {
+        modal.classList.remove("open");
+        const subtitleEl = modal.querySelector(".sso-subtitle");
+        if (subtitleEl) subtitleEl.textContent = DEFAULT_SSO_SUBTITLE;
+    }
 }
 
 // Displays or clears error banners in the modal

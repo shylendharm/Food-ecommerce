@@ -237,7 +237,7 @@ function renderFilteredOrders() {
     if (visibleOrders.length === 0) {
         container.innerHTML = `
             <div style="grid-column: 1 / -1; background: #111827; padding: 60px 24px; text-align: center; border-radius: 14px; border: 1px solid #1F2937;">
-                <span style="font-size: 3rem; display: block; margin-bottom: 12px;">🎉</span>
+                
                 <h3 style="font-size: 1.25rem; font-weight: 700; color: #FFFFFF; margin-bottom: 6px;">Queue is Clean</h3>
                 <p style="color: #94A3B8; font-size: 0.9rem;">No active tickets matching the selected filter.</p>
             </div>
@@ -259,11 +259,11 @@ function renderKitchenTicket(order) {
     };
 
     const statusBadgeMap = {
-        "PENDING": `<span class="ticket-badge badge-pending">⏳ New Ticket</span>`,
-        "PREPARING": `<span class="ticket-badge badge-preparing">🔥 Cooking</span>`,
-        "OUT_FOR_DELIVERY": `<span class="ticket-badge badge-delivering">🛵 En Route</span>`,
-        "DELIVERED": `<span class="ticket-badge badge-delivered">✅ Delivered</span>`,
-        "CANCELLED": `<span class="ticket-badge badge-cancelled">✕ Cancelled</span>`
+        "PENDING": `<span class="ticket-badge badge-pending">New Ticket</span>`,
+        "PREPARING": `<span class="ticket-badge badge-preparing">Cooking</span>`,
+        "OUT_FOR_DELIVERY": `<span class="ticket-badge badge-delivering">En Route</span>`,
+        "DELIVERED": `<span class="ticket-badge badge-delivered">Delivered</span>`,
+        "CANCELLED": `<span class="ticket-badge badge-cancelled">Cancelled</span>`
     };
 
     const cardStatusClass = statusClassMap[order.status] || "kds-status-pending";
@@ -281,17 +281,20 @@ function renderKitchenTicket(order) {
         </div>
     `).join("");
 
-    // Next Action Buttons
+    // =============================================================
+    // FILE: frontend/js/admin.js (Lines 285–331)
+    // =============================================================
+
+    // Next Action Buttons with Full Operational Cancellation
     let actionButtonsHtml = "";
     if (order.status === "PENDING") {
         actionButtonsHtml = `
             <div class="ticket-actions-bar">
                 <button class="btn-kds-action btn-kds-cook" data-order-id="${order.id}" data-next-status="PREPARING">
-                    <span>👨‍🍳</span>
                     <span>Start Cooking</span>
                 </button>
                 <button class="btn-kds-cancel" data-order-id="${order.id}" data-next-status="CANCELLED" title="Cancel this order">
-                    ✕
+                    Cancel
                 </button>
             </div>
         `;
@@ -299,11 +302,10 @@ function renderKitchenTicket(order) {
         actionButtonsHtml = `
             <div class="ticket-actions-bar">
                 <button class="btn-kds-action btn-kds-dispatch" data-order-id="${order.id}" data-next-status="OUT_FOR_DELIVERY">
-                    <span>🛵</span>
                     <span>Dispatch Rider</span>
                 </button>
                 <button class="btn-kds-cancel" data-order-id="${order.id}" data-next-status="CANCELLED" title="Cancel this order">
-                    ✕
+                    Cancel
                 </button>
             </div>
         `;
@@ -311,21 +313,23 @@ function renderKitchenTicket(order) {
         actionButtonsHtml = `
             <div class="ticket-actions-bar">
                 <button class="btn-kds-action btn-kds-deliver" data-order-id="${order.id}" data-next-status="DELIVERED">
-                    <span>✅</span>
                     <span>Mark Delivered</span>
+                </button>
+                <button class="btn-kds-cancel" data-order-id="${order.id}" data-next-status="CANCELLED" title="Cancel this order">
+                    Cancel
                 </button>
             </div>
         `;
     } else if (order.status === "DELIVERED") {
         actionButtonsHtml = `
-            <div style="text-align: center; padding: 8px 0; color: #34D399; font-size: 0.82rem; font-weight: 700;">
-                ✨ Order Completed & Settled
+            <div style="text-align: center; padding: 10px 0; color: #10B981; font-size: 0.85rem; font-weight: 700;">
+                Order Completed & Settled
             </div>
         `;
     } else {
         actionButtonsHtml = `
-            <div style="text-align: center; padding: 8px 0; color: #94A3B8; font-size: 0.82rem; font-weight: 600;">
-                🚫 Ticket Cancelled
+            <div style="text-align: center; padding: 10px 0; color: #EF4444; font-size: 0.85rem; font-weight: 700;">
+                Ticket Cancelled
             </div>
         `;
     }
@@ -346,8 +350,8 @@ function renderKitchenTicket(order) {
                 <div class="ticket-customer-info">
                     <div class="customer-name">${escapeHtml(order.customer_name || 'Customer')}</div>
                     <div class="customer-meta">
-                        <span>📞 ${escapeHtml(order.customer_phone || 'No phone provided')}</span>
-                        <span>📍 ${escapeHtml(order.delivery_address || 'Delivery Address')}</span>
+                        <span>${escapeHtml(order.customer_phone || 'No phone provided')}</span>
+                        <span>${escapeHtml(order.delivery_address || 'Delivery Address')}</span>
                     </div>
                 </div>
 
@@ -361,7 +365,7 @@ function renderKitchenTicket(order) {
                 <!-- Payment & Total Summary -->
                 <div class="ticket-footer-summary">
                     <span class="ticket-pay-badge ${order.payment_method === 'ONLINE' ? 'ticket-pay-paid' : 'ticket-pay-pending'}">
-                        ${order.payment_method === 'ONLINE' ? '💳 Paid Online' : '💵 Cash on Delivery'}
+                        ${order.payment_method === 'ONLINE' ? ' Paid Online' : ' Cash on Delivery'}
                     </span>
                     <span class="ticket-total-price">$${Number(order.total_amount).toFixed(2)}</span>
                 </div>
@@ -398,7 +402,7 @@ function attachTicketActionListeners() {
 async function handleStatusAdvance(orderId, nextStatus, buttonElement) {
     const originalText = buttonElement.innerHTML;
     buttonElement.disabled = true;
-    buttonElement.innerHTML = `<span>⏳ Updating...</span>`;
+    buttonElement.innerHTML = `<span> Updating...</span>`;
 
     try {
         await updateOrderStatus(orderId, nextStatus);
@@ -496,7 +500,7 @@ function renderFilteredInventory() {
                 </td>
                 <td>
                     <span class="diet-pill ${dish.is_veg ? 'diet-veg' : 'diet-nonveg'}">
-                        ${dish.is_veg ? '🌱 VEG' : '🍖 NON-VEG'}
+                        ${dish.is_veg ? ' VEG' : ' NON-VEG'}
                     </span>
                 </td>
                 <td>

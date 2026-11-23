@@ -5,8 +5,7 @@
    ============================================================= */
 
 // The base address of our live Python/FastAPI server
-const API_BASE_URL = "http://localhost:8000/api";
-
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 // LocalStorage Keys used to persist login session across page refreshes
 const TOKEN_KEY = "foodexpress_jwt_token";
 const USER_KEY = "foodexpress_user_profile";
@@ -41,7 +40,7 @@ async function apiRequest(endpoint, options = {}) {
 
             // If the server tells us our token has expired or is invalid
             if (response.status === 401 && token) {
-                console.warn("⚠️ Session expired. Clearing stored credentials.");
+                console.warn(" Session expired. Clearing stored credentials.");
                 logoutUser();
             }
 
@@ -65,7 +64,7 @@ async function apiRequest(endpoint, options = {}) {
         // Return parsed JSON
         return await response.json();
     } catch (error) {
-        console.error(`❌ Network request failed for [${endpoint}]:`, error.message);
+        console.error(` Network request failed for [${endpoint}]:`, error.message);
         throw error;
     }
 }

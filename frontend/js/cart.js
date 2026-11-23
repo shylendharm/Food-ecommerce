@@ -1,6 +1,7 @@
 /* =============================================================
    SHOPPING CART STATE & DRAWER CONTROLLER (frontend/js/cart.js)
-   Manages cart items in localStorage, calculations, and the sliding drawer.
+   Manages cart items in localStorage, calculations, drawer animations,
+   and the mandatory Google SSO checkout gate.
    ============================================================= */
 
 // Key name used to store cart data inside the browser's localStorage
@@ -20,7 +21,6 @@ let cart = loadCartFromStorage();
 function loadCartFromStorage() {
     try {
         const saved = localStorage.getItem(CART_STORAGE_KEY);
-        // If saved cart exists, parse it back to a JavaScript array; otherwise return []
         return saved ? JSON.parse(saved) : [];
     } catch (e) {
         console.error("Failed to parse cart from localStorage:", e);
@@ -37,7 +37,7 @@ function saveCartToStorage() {
 
 
 /* =============================================================
-   2. CORE CART ACTIONS (Add, Increase, Decrease, Remove)
+   2. CORE CART ACTIONS (Add, Increase, Decrease, Remove, Clear)
    ============================================================= */
 
 /**
@@ -45,17 +45,15 @@ function saveCartToStorage() {
  * If already in cart, increases its quantity by 1
  */
 function addToCart(dish) {
-    // Check if this dish is already in the cart
     const existingItem = cart.find(item => item.id === dish.id);
 
     if (existingItem) {
         existingItem.quantity += 1;
     } else {
-        // Add brand new item snapshot to cart
         cart.push({
             id: dish.id,
             name: dish.name,
-            price: parseFloat(dish.price), // Convert string/decimal to a number
+            price: parseFloat(dish.price),
             image_url: dish.image_url,
             is_veg: dish.is_veg,
             quantity: 1
@@ -64,7 +62,7 @@ function addToCart(dish) {
 
     saveCartToStorage();
     updateCartUI();
-    openCartDrawer(); // Automatically slide the cart open so the user sees it!
+    openCartDrawer();
 }
 
 /**
@@ -90,8 +88,16 @@ function updateQuantity(dishId, change) {
  * Completely removes a dish from the cart
  */
 function removeFromCart(dishId) {
-    // filter() keeps every item EXCEPT the one matching this ID
     cart = cart.filter(item => item.id !== dishId);
+    saveCartToStorage();
+    updateCartUI();
+}
+
+/**
+ * Clears all items from the cart
+ */
+function clearCart() {
+    cart = [];
     saveCartToStorage();
     updateCartUI();
 }
@@ -102,7 +108,7 @@ function removeFromCart(dishId) {
    ============================================================= */
 
 /**
- * Re-calculates totals and updates the screen (badge counter, drawer list, total price)
+ * Re-calculates totals and updates badge counter, drawer list, and subtotal
  */
 function updateCartUI() {
     // 1. Calculate total number of items for the badge counter
@@ -132,29 +138,29 @@ function updateCartUI() {
     // If the cart is empty, show the friendly empty state
     if (cart.length === 0) {
         container.innerHTML = `
-      <div class="empty-cart-state">
-        <span class="empty-icon">🍽️</span>
-        <p>Your cart is empty.</p>
-        <small>Add some tasty dishes from the menu!</small>
-      </div>
-    `;
+            <div class="empty-cart-state">
+                
+                <p>Your cart is empty.</p>
+                <small>Add some tasty dishes from the menu!</small>
+            </div>
+        `;
         return;
     }
 
     // Build the HTML rows for each food item
     container.innerHTML = cart.map(item => `
-    <div class="cart-item-row">
-      <div class="item-info">
-        <h4>${item.name}</h4>
-        <span>$${item.price.toFixed(2)} each</span>
-      </div>
-      <div class="qty-controls">
-        <button class="qty-btn" onclick="updateQuantity(${item.id}, -1)" aria-label="Decrease quantity">−</button>
-        <span class="qty-number">${item.quantity}</span>
-        <button class="qty-btn" onclick="updateQuantity(${item.id}, 1)" aria-label="Increase quantity">+</button>
-      </div>
-    </div>
-  `).join("");
+        <div class="cart-item-row">
+            <div class="item-info">
+                <h4>${item.name}</h4>
+                <span>$${item.price.toFixed(2)} each</span>
+            </div>
+            <div class="qty-controls">
+                <button class="qty-btn" onclick="updateQuantity(${item.id}, -1)" aria-label="Decrease quantity">−</button>
+                <span class="qty-number">${item.quantity}</span>
+                <button class="qty-btn" onclick="updateQuantity(${item.id}, 1)" aria-label="Increase quantity">+</button>
+            </div>
+        </div>
+    `).join("");
 }
 
 
@@ -167,7 +173,6 @@ function openCartDrawer() {
     const backdrop = document.getElementById("cart-backdrop");
 
     if (drawer && backdrop) {
-        // Swapping CSS classes triggers our smooth 0.35s CSS transition!
         drawer.classList.remove("closed");
         drawer.classList.add("open");
         backdrop.classList.remove("hidden");
@@ -187,7 +192,47 @@ function closeCartDrawer() {
 
 
 /* =============================================================
-   5. WIRE UP BUTTON EVENT LISTENERS ON PAGE LOAD
+   5. CHECKOUT GATE CONTROLLER (Mandatory Google Authentication)
+   ============================================================= */
+
+/**
+ * Intercepts the "Proceed to Checkout" click:
+ * 1. Blocks action if cart is empty.
+ * 2. Checks authentication state.
+ * 3. If unauthenticated, slides drawer closed, remembers redirect target,
+ *    and launches Google SSO modal with custom instructions.
+ */
+function handleProceedToCheckout(e) {
+    // 1. Guard against empty cart
+    if (!cart || cart.length === 0) {
+        e.preventDefault();
+        alert("Your cart is empty! Please add some dishes from the menu first.");
+        return;
+    }
+
+    // 2. Mandatory Authentication Gate
+    if (typeof isAuthenticated === "function" && !isAuthenticated()) {
+        e.preventDefault();
+
+        // Save post-login destination in sessionStorage for seamless auto-routing
+        sessionStorage.setItem("post_login_redirect", "checkout.html");
+
+        // Close the sliding cart drawer so the auth modal has full focus
+        closeCartDrawer();
+
+        // Launch Google SSO authentication modal
+        if (typeof openAuthModal === "function") {
+            openAuthModal();
+        } else {
+            alert("Please sign in with your Google account to proceed to checkout.");
+        }
+    }
+    // If authenticated, the normal browser navigation to checkout.html proceeds!
+}
+
+
+/* =============================================================
+   6. WIRE UP BUTTON EVENT LISTENERS ON PAGE LOAD
    ============================================================= */
 document.addEventListener("DOMContentLoaded", () => {
     // 1. Initial render of cart from localStorage
@@ -205,9 +250,15 @@ document.addEventListener("DOMContentLoaded", () => {
         closeBtn.addEventListener("click", closeCartDrawer);
     }
 
-    // 4. Clicking the dark backdrop outside the cart closes it too
+    // 4. Clicking the dark backdrop outside the cart closes it
     const backdrop = document.getElementById("cart-backdrop");
     if (backdrop) {
         backdrop.addEventListener("click", closeCartDrawer);
+    }
+
+    // 5. Intercept Proceed to Checkout with Authentication Gate
+    const checkoutBtn = document.getElementById("proceed-checkout-btn");
+    if (checkoutBtn) {
+        checkoutBtn.addEventListener("click", handleProceedToCheckout);
     }
 });
