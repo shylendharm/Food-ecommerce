@@ -13,6 +13,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
 
+    <!-- Official Google Identity Services SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
     <!-- Link to our CSS stylesheets -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/responsive.css">
@@ -61,10 +64,20 @@
     </section>
 
     <!-- ========================================================= -->
-    <!-- 3. CONTROLS BAR (Category Filter Tabs + Veg Toggle)        -->
+    <!-- 3. CONTROLS BAR (Search + Category Filter Tabs + Veg Toggle) -->
     <!-- ========================================================= -->
     <section class="controls-section">
         <div class="controls-container">
+
+            <!-- Real-time Live Menu Dish Search Bar -->
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="dish-search-input"
+                    placeholder="Search dishes (e.g. Margherita, Burger, Tacos)..." autocomplete="off"
+                    aria-label="Search dishes">
+                <button type="button" id="clear-search-btn" class="clear-search-btn hidden"
+                    aria-label="Clear search">&times;</button>
+            </div>
 
             <!-- Category tabs will be rendered here dynamically by menu.js -->
             <nav id="category-tabs" class="category-tabs" aria-label="Food Categories">
@@ -92,7 +105,7 @@
             <span id="items-count-label" class="items-count">Loading delicious dishes...</span>
         </div>
 
-        <!-- Populated with food cards by menu.js -->
+        <!-- Populated with 80 food cards by menu.js -->
         <div id="menu-grid" class="menu-grid">
             <div class="loading-state">
                 <p>Connecting to kitchen...</p>
@@ -141,65 +154,46 @@
     </aside>
 
     <!-- ========================================================= -->
-    <!-- 6. AUTHENTICATION POPUP MODAL (LOGIN & SIGN UP)           -->
+    <!-- 6. AUTHENTICATION POPUP MODAL (PURE GOOGLE SSO)           -->
     <!-- ========================================================= -->
     <div id="auth-modal" class="modal-backdrop">
-        <div class="modal-dialog">
+        <div class="modal-dialog sso-modal-dialog">
             <button id="close-auth-modal-btn" class="modal-close-btn" aria-label="Close">&times;</button>
 
-            <!-- Tab switches: Sign In vs Sign Up -->
-            <div class="modal-tabs">
-                <button id="tab-login-btn" class="modal-tab-btn active">Sign In</button>
-                <button id="tab-register-btn" class="modal-tab-btn">Create Account</button>
-            </div>
+            <div class="modal-body sso-modal-body">
+                <!-- Clean Brand Header & Informative Subtitle -->
+                <div class="sso-header">
+                    <span class="sso-brand-icon">🍕</span>
+                    <h2 class="sso-title">Welcome to FoodExpress</h2>
+                    <p class="sso-subtitle">
+                        Sign in with your verified Google account to track live orders and manage your deliveries.
+                    </p>
+                </div>
 
-            <div class="modal-body">
-                <!-- Error banner if credentials fail -->
+                <!-- Error banner if verification fails -->
                 <div id="auth-error-banner" class="auth-error-banner"></div>
 
-                <!-- 1. LOGIN FORM -->
-                <form id="login-form" class="auth-form">
-                    <div class="form-field">
-                        <label for="login-email">Email Address</label>
-                        <input type="email" id="login-email" required placeholder="alice@example.com">
-                    </div>
-                    <div class="form-field">
-                        <label for="login-password">Password</label>
-                        <input type="password" id="login-password" required placeholder="••••••••">
-                    </div>
-                    <button type="submit" class="btn-auth-submit">Sign In</button>
+                <!-- Primary 1-Click Google SSO Button -->
+                <div class="google-auth-box">
+                    <button type="button" id="google-signin-btn" class="btn-google-sso">
+                        <svg class="google-icon" viewBox="0 0 48 48" width="22" height="22">
+                            <path fill="#EA4335"
+                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                            <path fill="#4285F4"
+                                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                            <path fill="#FBBC05"
+                                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z" />
+                            <path fill="#34A853"
+                                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                        </svg>
+                        <span>Continue with Google</span>
+                    </button>
+                </div>
 
-                    <!-- 1-Click Quick Demo Buttons -->
-                    <div class="demo-accounts-box">
-                        <span class="demo-title">⚡ 1-Click Demo Login</span>
-                        <div class="demo-pills">
-                            <button type="button" class="demo-pill" id="demo-customer-btn">👤 Customer (Alice)</button>
-                            <button type="button" class="demo-pill admin" id="demo-admin-btn">🍳 Kitchen Staff
-                                (Admin)</button>
-                        </div>
-                    </div>
-                </form>
-
-                <!-- 2. REGISTRATION FORM (Hidden by default) -->
-                <form id="register-form" class="auth-form hidden">
-                    <div class="form-field">
-                        <label for="reg-name">Full Name</label>
-                        <input type="text" id="reg-name" required placeholder="Your Name">
-                    </div>
-                    <div class="form-field">
-                        <label for="reg-email">Email Address</label>
-                        <input type="email" id="reg-email" required placeholder="you@example.com">
-                    </div>
-                    <div class="form-field">
-                        <label for="reg-phone">Phone Number (Optional)</label>
-                        <input type="tel" id="reg-phone" placeholder="9876543210">
-                    </div>
-                    <div class="form-field">
-                        <label for="reg-password">Password (Min 6 characters)</label>
-                        <input type="password" id="reg-password" required minlength="6" placeholder="••••••••">
-                    </div>
-                    <button type="submit" class="btn-auth-submit">Create Account</button>
-                </form>
+                <div class="sso-trust-badge">
+                    <span>🔒</span>
+                    <span>Protected by Google Identity Services • No passwords stored</span>
+                </div>
             </div>
         </div>
     </div>
@@ -207,13 +201,9 @@
     <!-- ========================================================= -->
     <!-- 7. JAVASCRIPT LOGIC (In order of dependency!)              -->
     <!-- ========================================================= -->
-    <!-- 1. api.js sets up backend connection & JWT session -->
     <script src="js/api.js"></script>
-    <!-- 2. auth.js manages login popup and user navbar -->
     <script src="js/auth.js"></script>
-    <!-- 3. cart.js manages cart storage & drawer -->
     <script src="js/cart.js"></script>
-    <!-- 4. menu.js fetches items from API & renders cards -->
     <script src="js/menu.js"></script>
 </body>
 

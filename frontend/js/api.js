@@ -16,7 +16,7 @@ const USER_KEY = "foodexpress_user_profile";
  * Centralized fetch wrapper:
  * 1. Automatically injects 'Authorization: Bearer <token>' if user is logged in.
  * 2. Parses JSON responses safely.
- * 3. Catches and bubbles up server error messages cleanly.
+ * 3. Catches and bubbles up server error messages cleanly (extracts FastAPI 422 arrays).
  */
 async function apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -35,7 +35,7 @@ async function apiRequest(endpoint, options = {}) {
             ...options,
         });
 
-        // Handle HTTP error statuses (400, 401, 403, 404, 500)
+        // Handle HTTP error statuses (400, 401, 403, 404, 422, 500)
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
 
@@ -45,7 +45,20 @@ async function apiRequest(endpoint, options = {}) {
                 logoutUser();
             }
 
-            const errorMessage = errorData.detail || `Server error: ${response.status} ${response.statusText}`;
+            // Extract human-readable error message (handles both plain string detail and FastAPI 422 error arrays)
+            let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+
+            if (errorData.detail) {
+                if (Array.isArray(errorData.detail)) {
+                    // FastAPI Pydantic 422 returns an array: [{loc: [...], msg: "...", type: "..."}]
+                    errorMessage = errorData.detail.map(e => e.msg || JSON.stringify(e)).join(", ");
+                } else if (typeof errorData.detail === "object") {
+                    errorMessage = JSON.stringify(errorData.detail);
+                } else {
+                    errorMessage = String(errorData.detail);
+                }
+            }
+
             throw new Error(errorMessage);
         }
 
@@ -108,6 +121,21 @@ async function loginUser(email, password) {
     });
 
     // Save token and user details to localStorage
+    saveAuthSession(data.access_token, data.user);
+    return data;
+}
+
+/**
+ * Logs in or registers a user via Google OAuth2 Single Sign-On (SSO)
+ * Calls: POST /api/auth/google
+ */
+async function loginWithGoogle(credential) {
+    const data = await apiRequest("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ credential }),
+    });
+
+    // Save token and user details (including role & avatar) to localStorage
     saveAuthSession(data.access_token, data.user);
     return data;
 }
@@ -200,7 +228,7 @@ async function getAdminOrders(statusFilter = null) {
 }
 
 /**
- * Updates an order status (e.g., PENDING -> PREPARING)
+ * Updates an order status (e.g., PENDING -> PREPARING, or CANCELLED)
  * Calls: PATCH /api/admin/orders/{id}/status
  */
 async function updateOrderStatus(orderId, newStatus) {
@@ -230,6 +258,7 @@ async function createMenuItem(dishData) {
         body: JSON.stringify(dishData),
     });
 }
+
 
 /* =============================================================
    5. PAYMENTS & FINANCIAL SETTLEMENTS API FUNCTIONS

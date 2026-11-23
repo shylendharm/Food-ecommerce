@@ -1,10 +1,17 @@
 /* =============================================================
    AUTHENTICATION & NAVBAR CONTROLLER (frontend/js/auth.js)
-   Manages the login/registration popup modal, form submissions,
-   and dynamic user navbar dropdown state across pages.
+   Manages pure Google OAuth2 SSO, role-based navigation routing,
+   and role-specific profile dropdown states.
    ============================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
+    // 1. Role-based auto-routing: If logged in as ADMIN and currently on storefront,
+    // immediately direct to the Kitchen Operations Console (KDS)
+    if (isAdmin() && !window.location.pathname.endsWith("admin.html")) {
+        window.location.href = "admin.html";
+        return;
+    }
+
     initAuthNavbar();
     initAuthModal();
 });
@@ -28,7 +35,7 @@ function initAuthNavbar() {
         `;
 
         document.getElementById("open-auth-btn")?.addEventListener("click", () => {
-            openAuthModal("login");
+            openAuthModal();
         });
     } else {
         // --- 2. LOGGED-IN STATE: Render User Profile Dropdown ---
@@ -37,38 +44,69 @@ function initAuthNavbar() {
         const initial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
         const userIsAdmin = isAdmin();
 
+        // If the user has a Google profile avatar, render circular <img>; otherwise initial letter
+        const avatarContent = user?.picture_url
+            ? `<img src="${user.picture_url}" alt="${firstName}" />`
+            : `${initial}`;
+
+        // Construct role-specific dropdown contents
+        let dropdownBody = "";
+
+        if (userIsAdmin) {
+            // ADMIN DROPDOWN: Strictly Name with 'Admin' tag beside it and Sign Out
+            dropdownBody = `
+                <div class="dropdown-header">
+                    <div class="dropdown-user-name">
+                        ${user?.name || "Administrator"} 
+                        <span style="display: inline-block; background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.35); font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; vertical-align: middle; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Admin</span>
+                    </div>
+                    <div class="dropdown-user-email">${user?.email || ""}</div>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <button id="logout-btn" class="dropdown-item logout">
+                    <span>🚪</span>
+                    <span>Sign Out</span>
+                </button>
+            `;
+        } else {
+            // CUSTOMER DROPDOWN: Name, Email, My Orders, and Sign Out
+            dropdownBody = `
+                <div class="dropdown-header">
+                    <div class="dropdown-user-name">${user?.name || "Customer"}</div>
+                    <div class="dropdown-user-email">${user?.email || ""}</div>
+                    ${user?.auth_provider === "GOOGLE" ? `
+                        <div style="font-size: 0.72rem; color: #4285F4; margin-top: 4px; font-weight: 600;">
+                            🔵 Verified Google Account
+                        </div>
+                    ` : ""}
+                </div>
+
+                <a href="my-orders.html" class="dropdown-item">
+                    <span>📦</span>
+                    <span>My Orders</span>
+                </a>
+
+                <div class="dropdown-divider"></div>
+
+                <button id="logout-btn" class="dropdown-item logout">
+                    <span>🚪</span>
+                    <span>Sign Out</span>
+                </button>
+            `;
+        }
+
         authNavContainer.innerHTML = `
             <div class="user-menu-container">
                 <button id="user-menu-btn" class="user-menu-btn" aria-label="Open User Menu">
-                    <span class="user-avatar">${initial}</span>
+                    <span class="user-avatar">${avatarContent}</span>
                     <span>Hi, ${firstName}</span>
                     <span style="font-size: 0.75rem;">▼</span>
                 </button>
 
                 <div id="user-dropdown" class="user-dropdown">
-                    <div class="dropdown-header">
-                        <div class="dropdown-user-name">${user?.name || "Customer"}</div>
-                        <div class="dropdown-user-email">${user?.email || ""}</div>
-                    </div>
-
-                    <a href="my-orders.html" class="dropdown-item">
-                        <span>📦</span>
-                        <span>My Orders</span>
-                    </a>
-
-                    ${userIsAdmin ? `
-                        <a href="admin.html" class="dropdown-item admin-link">
-                            <span>🍳</span>
-                            <span>Kitchen Portal (Admin)</span>
-                        </a>
-                    ` : ""}
-
-                    <div class="dropdown-divider"></div>
-
-                    <button id="logout-btn" class="dropdown-item logout">
-                        <span>🚪</span>
-                        <span>Sign Out</span>
-                    </button>
+                    ${dropdownBody}
                 </div>
             </div>
         `;
@@ -83,16 +121,17 @@ function initAuthNavbar() {
             dropdown?.classList.toggle("show");
         });
 
-        // Close dropdown when clicking anywhere else on the document
+        // Close dropdown when clicking anywhere else on document
         document.addEventListener("click", (e) => {
             if (!dropdown?.contains(e.target) && e.target !== menuBtn) {
                 dropdown?.classList.remove("show");
             }
         });
 
-        // Sign out button handler
+        // Sign out button handler: Clear session and smoothly return to storefront
         logoutBtn?.addEventListener("click", () => {
             logoutUser();
+            window.location.href = "index.html";
         });
     }
 }
@@ -107,11 +146,7 @@ function initAuthModal() {
     if (!modal) return;
 
     const closeBtn = document.getElementById("close-auth-modal-btn");
-    const tabLogin = document.getElementById("tab-login-btn");
-    const tabRegister = document.getElementById("tab-register-btn");
-    const loginForm = document.getElementById("login-form");
-    const registerForm = document.getElementById("register-form");
-    const errorBanner = document.getElementById("auth-error-banner");
+    const googleBtn = document.getElementById("google-signin-btn");
 
     // Close modal handlers
     closeBtn?.addEventListener("click", closeAuthModal);
@@ -126,59 +161,98 @@ function initAuthModal() {
         }
     });
 
-    // Tab Switching (Sign In vs Register)
-    tabLogin?.addEventListener("click", () => switchAuthTab("login"));
-    tabRegister?.addEventListener("click", () => switchAuthTab("register"));
+    // Primary Google SSO Button Click
+    googleBtn?.addEventListener("click", handleGoogleSignIn);
 
-    // Quick 1-Click Demo Fillers
-    document.getElementById("demo-customer-btn")?.addEventListener("click", async () => {
-        document.getElementById("login-email").value = "alice@example.com";
-        document.getElementById("login-password").value = "customer123";
-        await handleLoginSubmit("alice@example.com", "customer123");
-    });
-
-    document.getElementById("demo-admin-btn")?.addEventListener("click", async () => {
-        document.getElementById("login-email").value = "admin@restaurant.com";
-        document.getElementById("login-password").value = "admin123";
-        await handleLoginSubmit("admin@restaurant.com", "admin123");
-    });
-
-    // Sign In form submit
-    loginForm?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = document.getElementById("login-email").value.trim();
-        const password = document.getElementById("login-password").value;
-        await handleLoginSubmit(email, password);
-    });
-
-    // Create Account form submit
-    registerForm?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const name = document.getElementById("reg-name").value.trim();
-        const email = document.getElementById("reg-email").value.trim();
-        const phone = document.getElementById("reg-phone").value.trim() || null;
-        const password = document.getElementById("reg-password").value;
-
-        showAuthError(null); // Clear previous errors
-
-        try {
-            await registerUser(name, email, password, phone);
-            // Auto login immediately after successful registration
-            await loginUser(email, password);
-            closeAuthModal();
-            initAuthNavbar();
-        } catch (error) {
-            showAuthError(error.message);
+    // Initialize official Google Identity Services if client ID is configured
+    try {
+        if (window.google?.accounts?.id && window.GOOGLE_CLIENT_ID) {
+            window.google.accounts.id.initialize({
+                client_id: window.GOOGLE_CLIENT_ID,
+                callback: handleGoogleCredentialResponse
+            });
         }
-    });
+    } catch (err) {
+        console.warn("Google Identity Services initialization:", err);
+    }
 }
 
-// Opens the modal and selects the requested tab
-function openAuthModal(tab = "login") {
+
+/* =============================================================
+   3. GOOGLE OAUTH2 SIGN-IN HANDLER
+   ============================================================= */
+
+// Global callback invoked by official Google Identity Services SDK
+window.handleGoogleCredentialResponse = async function (response) {
+    if (!response || !response.credential) return;
+    try {
+        const data = await loginWithGoogle(response.credential);
+        closeAuthModal();
+
+        // If authenticated as ADMIN, route directly to the Kitchen Operations portal
+        if (data.user && data.user.role === "ADMIN") {
+            window.location.href = "admin.html";
+            return;
+        }
+
+        initAuthNavbar();
+        console.log("✅ Authenticated via Google Identity Services");
+    } catch (error) {
+        showAuthError(error.message || "Google Single Sign-On failed.");
+    }
+};
+
+// Invoked when user clicks the "Continue with Google" button
+async function handleGoogleSignIn() {
+    showAuthError(null);
+
+    // 1. If Google Identity Services SDK is configured with a live Client ID:
+    if (window.google?.accounts?.id && window.GOOGLE_CLIENT_ID) {
+        window.google.accounts.id.prompt();
+        return;
+    }
+
+    // 2. Interactive Development / Placement Interview Demo Mode:
+    const defaultEmail = "shylendharm369@gmail.com";
+    const promptMessage =
+        "Google Single Sign-On (Development Demo):\n" +
+        "Enter any Google email address to authenticate:\n\n" +
+        "• Press OK to log in as Master Admin (shylendharm369@gmail.com)\n" +
+        "• Or enter any other email (e.g. rahul@gmail.com) to test Customer role";
+
+    const userEmail = prompt(promptMessage, defaultEmail);
+    if (!userEmail) return; // User pressed Cancel
+
+    const sanitizedEmail = userEmail.trim().toLowerCase();
+    const mockCredential = `mock_google_token_${sanitizedEmail}`;
+
+    try {
+        const data = await loginWithGoogle(mockCredential);
+        closeAuthModal();
+
+        // If authenticated as ADMIN, route directly to the Kitchen Operations portal
+        if (data.user && data.user.role === "ADMIN") {
+            window.location.href = "admin.html";
+            return;
+        }
+
+        initAuthNavbar();
+        console.log(`✅ Logged in successfully via Google SSO as: ${sanitizedEmail} (Role: ${data.user.role})`);
+    } catch (error) {
+        showAuthError(error.message || "Google authentication failed.");
+    }
+}
+
+
+/* =============================================================
+   4. MODAL & UI HELPERS
+   ============================================================= */
+
+// Opens the Google SSO modal
+function openAuthModal() {
     const modal = document.getElementById("auth-modal");
     if (!modal) return;
     showAuthError(null);
-    switchAuthTab(tab);
     modal.classList.add("open");
 }
 
@@ -188,41 +262,7 @@ function closeAuthModal() {
     if (modal) modal.classList.remove("open");
 }
 
-// Switches between login and register views
-function switchAuthTab(tab) {
-    const tabLogin = document.getElementById("tab-login-btn");
-    const tabRegister = document.getElementById("tab-register-btn");
-    const loginForm = document.getElementById("login-form");
-    const registerForm = document.getElementById("register-form");
-
-    showAuthError(null);
-
-    if (tab === "login") {
-        tabLogin?.classList.add("active");
-        tabRegister?.classList.remove("active");
-        loginForm?.classList.remove("hidden");
-        registerForm?.classList.add("hidden");
-    } else {
-        tabRegister?.classList.add("active");
-        tabLogin?.classList.remove("active");
-        registerForm?.classList.remove("hidden");
-        loginForm?.classList.add("hidden");
-    }
-}
-
-// Helper: Performs login and updates UI
-async function handleLoginSubmit(email, password) {
-    showAuthError(null);
-    try {
-        await loginUser(email, password);
-        closeAuthModal();
-        initAuthNavbar();
-    } catch (error) {
-        showAuthError(error.message);
-    }
-}
-
-// Helper: Displays or clears error banners in the modal
+// Displays or clears error banners in the modal
 function showAuthError(message) {
     const errorBanner = document.getElementById("auth-error-banner");
     if (!errorBanner) return;
