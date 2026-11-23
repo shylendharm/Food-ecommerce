@@ -1,3 +1,7 @@
+# =============================================================
+# FILE: backend/app/routes/auth.py
+# =============================================================
+
 """
 Authentication & User Management Router
 Location: backend/app/routes/auth.py
@@ -6,6 +10,7 @@ Environment-Gated Security Architecture:
 1. In Production (ENVIRONMENT=production): Sandbox mock tokens are strictly blocked (401).
 2. In Development & Testing: Sandbox tokens allow local verification of both Customer & Admin.
 3. Master Administrator: shylendharm369@gmail.com holds exclusive admin authority.
+4. Profile Lifecycle: Provides onboarding update endpoint (PUT /api/auth/profile).
 """
 
 import os
@@ -16,7 +21,13 @@ import httpx
 
 from app.database import get_db
 from app.models import User, UserRole, AuthProvider
-from app.schemas import UserCreate, UserLogin, UserResponse, GoogleAuthRequest
+from app.schemas import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    GoogleAuthRequest,
+    UserProfileUpdate
+)
 from app.security import (
     hash_password,
     verify_password,
@@ -160,11 +171,30 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
 
 
 # =============================================================
-# 3. PROFILE RETRIEVAL ENDPOINT
+# 3. PROFILE MANAGEMENT ENDPOINTS
 # =============================================================
 
 @router.get("/me", response_model=UserResponse, summary="Get current logged-in user profile")
 def get_my_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.put("/profile", response_model=UserResponse, summary="Update user profile details (Name, Phone, Default Address)")
+def update_profile(
+    profile_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Onboarding Profile Setup / Profile Edit Endpoint.
+    Guarded by JWT authentication. Updates name, phone, and default_address.
+    """
+    current_user.name = profile_data.name.strip()
+    current_user.phone = profile_data.phone.strip()
+    current_user.default_address = profile_data.default_address.strip()
+
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 
@@ -185,6 +215,7 @@ def register_customer(user_payload: UserCreate, db: Session = Depends(get_db)):
         name=user_payload.name,
         email=user_payload.email,
         phone=user_payload.phone,
+        default_address=user_payload.default_address,
         password_hash=hash_password(user_payload.password),
         auth_provider=AuthProvider.LOCAL
     )

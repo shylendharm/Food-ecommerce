@@ -1,7 +1,8 @@
 /* =============================================================
-   SHOPPING CART STATE & DRAWER CONTROLLER (frontend/js/cart.js)
+   FILE: frontend/js/cart.js
+   SHOPPING CART STATE & DRAWER CONTROLLER
    Manages cart items in localStorage, calculations, drawer animations,
-   and the mandatory Google SSO checkout gate.
+   and clean checkout navigation routing.
    ============================================================= */
 
 // Key name used to store cart data inside the browser's localStorage
@@ -23,7 +24,7 @@ function loadCartFromStorage() {
         const saved = localStorage.getItem(CART_STORAGE_KEY);
         return saved ? JSON.parse(saved) : [];
     } catch (e) {
-        console.error("Failed to parse cart from localStorage:", e);
+        console.error("[Cart] Failed to parse cart from localStorage:", e);
         return [];
     }
 }
@@ -135,13 +136,12 @@ function updateCartUI() {
     const container = document.getElementById("cart-items-container");
     if (!container) return;
 
-    // If the cart is empty, show the friendly empty state
+    // If the cart is empty, show the clean empty state
     if (cart.length === 0) {
         container.innerHTML = `
             <div class="empty-cart-state">
-                
                 <p>Your cart is empty.</p>
-                <small>Add some tasty dishes from the menu!</small>
+                <small>Add some tasty dishes from the menu to get started.</small>
             </div>
         `;
         return;
@@ -192,48 +192,35 @@ function closeCartDrawer() {
 
 
 /* =============================================================
-   5. CHECKOUT GATE CONTROLLER (Mandatory Google Authentication)
+   5. CHECKOUT ROUTING (Zero Modal Popups)
    ============================================================= */
 
 /**
- * Intercepts the "Proceed to Checkout" click:
+ * Handles the "Proceed to Checkout" action:
  * 1. Blocks action if cart is empty.
- * 2. Checks authentication state.
- * 3. If unauthenticated, slides drawer closed, remembers redirect target,
- *    and launches Google SSO modal with custom instructions.
+ * 2. If unauthenticated, sets return redirect and navigates cleanly to login.html.
+ * 3. If authenticated, allows default navigation to checkout.html.
  */
 function handleProceedToCheckout(e) {
-    // 1. Guard against empty cart
     if (!cart || cart.length === 0) {
         e.preventDefault();
-        alert("Your cart is empty! Please add some dishes from the menu first.");
+        alert("Your cart is empty. Please add items from the menu first.");
         return;
     }
 
-    // 2. Mandatory Authentication Gate
     if (typeof isAuthenticated === "function" && !isAuthenticated()) {
         e.preventDefault();
-
-        // Save post-login destination in sessionStorage for seamless auto-routing
         sessionStorage.setItem("post_login_redirect", "checkout.html");
-
-        // Close the sliding cart drawer so the auth modal has full focus
-        closeCartDrawer();
-
-        // Launch Google SSO authentication modal
-        if (typeof openAuthModal === "function") {
-            openAuthModal();
-        } else {
-            alert("Please sign in with your Google account to proceed to checkout.");
-        }
+        window.location.href = "login.html";
+        return;
     }
-    // If authenticated, the normal browser navigation to checkout.html proceeds!
 }
 
 
 /* =============================================================
-   6. WIRE UP BUTTON EVENT LISTENERS ON PAGE LOAD
+   6. EVENT LISTENERS INITIALIZATION
    ============================================================= */
+
 document.addEventListener("DOMContentLoaded", () => {
     // 1. Initial render of cart from localStorage
     updateCartUI();
@@ -256,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
         backdrop.addEventListener("click", closeCartDrawer);
     }
 
-    // 5. Intercept Proceed to Checkout with Authentication Gate
+    // 5. Intercept Proceed to Checkout
     const checkoutBtn = document.getElementById("proceed-checkout-btn");
     if (checkoutBtn) {
         checkoutBtn.addEventListener("click", handleProceedToCheckout);

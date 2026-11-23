@@ -1,0 +1,91 @@
+<!-- ============================================================= -->
+<!-- FILE: frontend/login.html                                     -->
+<!-- ============================================================= -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodExpress | Sign In & Account Creation</title>
+
+    <!-- Typography: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Official Google Identity Services SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <!-- Centralized Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body class="auth-page-body">
+
+    <main class="auth-portal-wrapper">
+        <div class="auth-portal-card">
+
+            <!-- Brand Header -->
+            <header class="auth-brand-header">
+                <img src="assets/logo.png" alt="FoodExpress Logo" class="auth-brand-logo">
+                <h1 class="auth-brand-title">Food<strong>Express</strong></h1>
+                <p id="portal-subtitle" class="auth-subtitle">Sign in to your account to continue</p>
+            </header>
+
+            <!-- Mode Switcher Tabs -->
+            <nav class="auth-tabs" aria-label="Authentication Options">
+                <button type="button" id="tab-login" class="auth-tab-btn active">Sign In</button>
+                <button type="button" id="tab-register" class="auth-tab-btn">Create Account</button>
+            </nav>
+
+            <!-- Dynamic Error Notification Banner -->
+            <div id="portal-error-banner" class="auth-error-banner" role="alert"></div>
+
+            <!-- Official Google Identity Services Render Target -->
+            <div id="google-sso-wrapper"
+                style="display: flex; justify-content: center; width: 100%; margin-bottom: 4px;">
+                <div id="google-sso-btn"></div>
+            </div>
+
+            <!-- Subtle Semantic Divider -->
+            <div class="auth-divider">
+                <span>or with email</span>
+            </div>
+
+            <!-- Credentials Form -->
+            <form id="portal-form" novalidate>
+                <div id="field-name-group" class="auth-form-group auth-field-hidden">
+                    <label for="input-name" class="auth-form-label">Full Name</label>
+                    <input type="text" id="input-name" class="auth-input" placeholder="e.g. John Doe">
+                </div>
+
+                <div class="auth-form-group">
+                    <label for="input-email" class="auth-form-label">Email Address</label>
+                    <input type="email" id="input-email" class="auth-input" placeholder="name@example.com" required>
+                </div>
+
+                <div class="auth-form-group">
+                    <label for="input-password" class="auth-form-label">Password</label>
+                    <input type="password" id="input-password" class="auth-input" placeholder="Minimum 6 characters"
+                        required>
+                </div>
+
+                <button type="submit" id="portal-submit-btn" class="btn-auth-submit">Sign In</button>
+            </form>
+
+            <footer class="auth-footer-note">
+                <p>Protected by official Google Identity Services & JWT encryption.</p>
+            </footer>
+
+        </div>
+    </main>
+
+    <!-- Centralized JavaScript Controllers -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+</body>
+
+</html>

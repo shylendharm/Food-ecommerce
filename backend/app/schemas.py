@@ -1,3 +1,7 @@
+# =============================================================
+# FILE: backend/app/schemas.py
+# =============================================================
+
 """
 Pydantic Request & Response Validation Schemas
 Location: backend/app/schemas.py
@@ -99,13 +103,14 @@ class OrderResponse(BaseModel):
 
 
 # =============================================================
-# 5. USER & AUTH SCHEMAS (Including Google OAuth2)
+# 5. USER & AUTH SCHEMAS (Including Profile Onboarding)
 # =============================================================
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2)
     email: EmailStr
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
+    default_address: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -115,11 +120,18 @@ class UserLogin(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services")
 
+# Payload sent by frontend during the mandatory onboarding profile setup:
+class UserProfileUpdate(BaseModel):
+    name: str = Field(..., min_length=2, example="John Doe")
+    phone: str = Field(..., min_length=10, max_length=15, example="9876543210")
+    default_address: str = Field(..., min_length=5, example="Flat 402, Sunshine Apartments, Bengaluru")
+
 class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
     phone: Optional[str] = None
+    default_address: Optional[str] = None
     role: UserRole
     auth_provider: AuthProvider = AuthProvider.LOCAL
     picture_url: Optional[str] = None

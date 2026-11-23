@@ -1,5 +1,6 @@
 /* =============================================================
-   API CLIENT MODULE (frontend/js/api.js)
+   FILE: frontend/js/api.js
+   API CLIENT MODULE
    Centralizes all HTTP network communication with our FastAPI backend.
    Automatically manages JWT authentication and token persistence.
    ============================================================= */
@@ -28,7 +29,7 @@ async function apiRequest(endpoint, options = {}) {
         const response = await fetch(url, {
             headers: {
                 "Content-Type": "application/json",
-                ...authHeaders,         // Injects Bearer token automatically!
+                ...authHeaders,         // Injects Bearer token automatically
                 ...options.headers,     // Allows caller to override headers if needed
             },
             ...options,
@@ -40,7 +41,7 @@ async function apiRequest(endpoint, options = {}) {
 
             // If the server tells us our token has expired or is invalid
             if (response.status === 401 && token) {
-                console.warn(" Session expired. Clearing stored credentials.");
+                console.warn("[Auth] Session expired. Clearing stored credentials.");
                 logoutUser();
             }
 
@@ -64,7 +65,7 @@ async function apiRequest(endpoint, options = {}) {
         // Return parsed JSON
         return await response.json();
     } catch (error) {
-        console.error(` Network request failed for [${endpoint}]:`, error.message);
+        console.error(`[API] Network request failed for [${endpoint}]:`, error.message);
         throw error;
     }
 }
@@ -134,7 +135,7 @@ async function loginWithGoogle(credential) {
         body: JSON.stringify({ credential }),
     });
 
-    // Save token and user details (including role & avatar) to localStorage
+    // Save token and user details to localStorage
     saveAuthSession(data.access_token, data.user);
     return data;
 }
@@ -156,6 +157,25 @@ async function registerUser(name, email, password, phone = null) {
  */
 async function getMyProfile() {
     return await apiRequest("/auth/me");
+}
+
+/**
+ * Updates profile details (Full Name, Phone Number, Default Address)
+ * Calls: PUT /api/auth/profile
+ */
+async function updateUserProfile(profileData) {
+    const updatedUser = await apiRequest("/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify(profileData),
+    });
+
+    // Synchronize fresh user state into local storage
+    const currentToken = getStoredToken();
+    if (currentToken && updatedUser) {
+        saveAuthSession(currentToken, updatedUser);
+    }
+
+    return updatedUser;
 }
 
 
@@ -281,7 +301,6 @@ async function createPaymentIntent(orderId) {
 async function triggerPaymentWebhook(webhookData, signature) {
     const url = `${API_BASE_URL}/payments/webhook`;
 
-    // Note: X-Signature header is where the cryptographic seal travels!
     const response = await fetch(url, {
         method: "POST",
         headers: {

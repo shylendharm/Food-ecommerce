@@ -1,0 +1,87 @@
+<!-- ============================================================= -->
+<!-- FILE: frontend/profile-setup.html                             -->
+<!-- ============================================================= -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodExpress | Complete Your Profile</title>
+
+    <!-- Typography: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Centralized Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body class="auth-page-body">
+
+    <main class="auth-portal-wrapper">
+        <div class="auth-portal-card">
+
+            <!-- Brand Header -->
+            <header class="auth-brand-header">
+                <img src="assets/logo.png" alt="FoodExpress Logo" class="auth-brand-logo">
+                <h1 class="auth-brand-title">Food<strong>Express</strong></h1>
+                <p class="auth-subtitle">Complete your profile to unlock orders and live delivery tracking</p>
+            </header>
+
+            <!-- Dynamic Error Notification Banner -->
+            <div id="profile-error-banner" class="auth-error-banner" role="alert"></div>
+
+            <!-- Profile Onboarding Form -->
+            <form id="profile-setup-form" novalidate>
+
+                <!-- Full Name Field -->
+                <div class="auth-form-group">
+                    <label for="setup-name" class="auth-form-label">Full Name</label>
+                    <input type="text" id="setup-name" class="auth-input" placeholder="e.g. Shylendhar Mohan" required
+                        minlength="2">
+                </div>
+
+                <!-- Email Address (Read-Only Identity) -->
+                <div class="auth-form-group">
+                    <label for="setup-email" class="auth-form-label">Email Address (Account Identity)</label>
+                    <input type="email" id="setup-email" class="auth-input" readonly>
+                </div>
+
+                <!-- Contact Phone Number -->
+                <div class="auth-form-group">
+                    <label for="setup-phone" class="auth-form-label">Phone Number (For Delivery Coordination)</label>
+                    <input type="tel" id="setup-phone" class="auth-input" placeholder="e.g. 9876543210" required
+                        maxlength="15">
+                </div>
+
+                <!-- Default Delivery Address -->
+                <div class="auth-form-group">
+                    <label for="setup-address" class="auth-form-label">Default Delivery Address</label>
+                    <textarea id="setup-address" class="auth-input" rows="3"
+                        placeholder="Flat / House No, Street, Landmark, Area, City" required minlength="5"></textarea>
+                </div>
+
+                <!-- Submit Action -->
+                <button type="submit" id="profile-submit-btn" class="btn-auth-submit">
+                    Save Profile & Continue
+                </button>
+            </form>
+
+            <footer class="auth-footer-note">
+                <p>Your address serves as your default delivery location and can be edited anytime at checkout.</p>
+            </footer>
+
+        </div>
+    </main>
+
+    <!-- Centralized JavaScript Controllers -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/profile-setup.js"></script>
+</body>
+
+</html>

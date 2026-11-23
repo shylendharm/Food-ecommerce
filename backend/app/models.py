@@ -49,6 +49,10 @@ class PaymentStatus(str, enum.Enum):
 # -------------------------------------------------------------
 # 1. Users Model (Customers & Restaurant Staff)
 # -------------------------------------------------------------
+# =============================================================
+# FILE: backend/app/models.py (Lines 52–74)
+# =============================================================
+
 class User(Base):
     __tablename__ = "users"
 
@@ -59,6 +63,7 @@ class User(Base):
     # Nullable for Google SSO accounts since Google manages credentials
     password_hash = Column(String(255), nullable=True)
     phone = Column(String(20), nullable=True)
+    default_address = Column(Text, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
     
     # Google OAuth2 Integration Fields
@@ -70,7 +75,6 @@ class User(Base):
 
     # Relationships
     orders = relationship("Order", back_populates="customer")
-
 
 # -------------------------------------------------------------
 # 2. Categories Model (Pizzas, Burgers, Sides, Desserts)

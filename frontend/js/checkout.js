@@ -1,8 +1,8 @@
 /* =============================================================
-   CHECKOUT & ORDER SUBMISSION CONTROLLER (frontend/js/checkout.js)
-   Validates delivery info, enforces mandatory Google SSO,
-   auto-fills customer details, remembers saved address,
-   and handles both Cash on Delivery (COD) & Online Sandbox Payments.
+   FILE: frontend/js/checkout.js
+   CHECKOUT & ORDER SUBMISSION CONTROLLER
+   Validates delivery info, auto-hydrates saved customer profile & default
+   address, supports per-order address overrides, and handles COD / Online payments.
    ============================================================= */
 
 // Key name used to remember delivery address across sessions
@@ -12,25 +12,24 @@ const SAVED_ADDRESS_KEY = "foodexpress_saved_address";
 let pendingOnlineOrder = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Guard Clause A: If the cart is empty, redirect back to menu!
+  // 1. Guard Clause A: If the cart is empty, redirect back to menu
   if (!cart || cart.length === 0) {
     alert("Your shopping cart is empty! Redirecting you to the menu.");
     window.location.href = "index.html";
     return;
   }
 
-  // 2. Guard Clause B: Mandatory Google Sign-In Gate!
+  // 2. Guard Clause B: Mandatory Authentication Gate
   if (typeof isAuthenticated === "function" && !isAuthenticated()) {
     sessionStorage.setItem("post_login_redirect", "checkout.html");
-    alert("Please sign in with your Google account to proceed with your order.");
-    window.location.href = "index.html";
+    window.location.href = "login.html";
     return;
   }
 
   // 3. Render the order summary on the right side
   renderCheckoutSummary();
 
-  // 4. Auto-fill form from Google profile and restore saved address
+  // 4. Auto-fill form from user profile and default address
   autoFillUserDetails();
 
   // 5. Listen for payment method radio selection changes
@@ -48,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 /* =============================================================
-   1. AUTO-FILL LOGGED-IN CUSTOMER DATA & SAVED ADDRESS
+   1. AUTO-FILL LOGGED-IN CUSTOMER DATA & DEFAULT ADDRESS
    ============================================================= */
 
 function autoFillUserDetails() {
@@ -62,24 +61,24 @@ function autoFillUserDetails() {
   const phoneInput = document.getElementById("cust-phone");
   const addressInput = document.getElementById("cust-address");
 
-  // Auto-fill Google Profile Identity
+  // Auto-fill authenticated profile identity
   if (nameInput && user.name) nameInput.value = user.name;
   if (emailInput && user.email) emailInput.value = user.email;
   if (phoneInput && user.phone) phoneInput.value = user.phone;
 
-  // Restore remembered delivery address from localStorage
-  const savedAddress = localStorage.getItem(SAVED_ADDRESS_KEY);
-  if (addressInput && savedAddress && !addressInput.value) {
-    addressInput.value = savedAddress;
+  // Requirement 2: Auto-populate default address from profile while allowing per-order edits
+  const effectiveAddress = user.default_address || localStorage.getItem(SAVED_ADDRESS_KEY) || "";
+  if (addressInput && effectiveAddress && !addressInput.value) {
+    addressInput.value = effectiveAddress;
   }
 
-  // Visual banner confirming authenticated order linkage
+  // Unified dark design badge confirming authenticated order linkage
   const cardHeader = document.querySelector(".checkout-form-section .checkout-card h3");
   if (cardHeader && !document.getElementById("auth-linked-badge")) {
     const badge = document.createElement("div");
     badge.id = "auth-linked-badge";
-    badge.style.cssText = "background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; padding: 10px 14px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; margin-bottom: 18px; display: flex; align-items: center; gap: 8px;";
-    badge.innerHTML = `<span>Ordering as <strong>${user.name}</strong> (${user.email}). Live GPS tracking will be linked to your account!</span>`;
+    badge.style.cssText = "background: #111827; border: 1px solid #1F2937; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 500; margin-bottom: 20px; line-height: 1.4;";
+    badge.innerHTML = `Ordering as <strong>${user.name}</strong> (${user.email}). Default address auto-populated from profile.`;
     cardHeader.insertAdjacentElement("afterend", badge);
   }
 }
@@ -163,7 +162,7 @@ async function handleOrderSubmit(e) {
     return;
   }
 
-  // Remember address in localStorage for subsequent fast checkout
+  // Temporarily cache the entered address for immediate browser recall
   localStorage.setItem(SAVED_ADDRESS_KEY, addressInput);
 
   if (submitBtn) {
@@ -186,24 +185,24 @@ async function handleOrderSubmit(e) {
 
     // Submit the order to FastAPI /api/orders
     const createdOrder = await submitOrder(orderPayload);
-    console.log(" Order created! ID:", createdOrder.id);
+    console.log("[Checkout] Order created successfully. ID:", createdOrder.id);
 
     // Clear cart from localStorage and memory
     cart = [];
     if (typeof saveCartToStorage === "function") saveCartToStorage();
 
-    // ROUTE A: Cash on Delivery -> Redirect directly to live GPS tracking!
+    // ROUTE A: Cash on Delivery -> Redirect directly to live GPS tracking
     if (paymentMethod === "COD") {
       window.location.href = `tracking.html?order_id=${createdOrder.id}`;
       return;
     }
 
-    // ROUTE B: Online Payment -> Open the Sandbox Gateway Modal!
+    // ROUTE B: Online Payment -> Open the Sandbox Gateway Modal
     pendingOnlineOrder = createdOrder;
     openPaymentModal(createdOrder);
 
   } catch (error) {
-    console.error("Order submission failed:", error);
+    console.error("[Checkout] Order submission failed:", error);
     alert(`Failed to place order: ${error.message}`);
 
     if (submitBtn) {
@@ -243,7 +242,6 @@ function initSandboxPaymentModal() {
 
   closeBtn?.addEventListener("click", () => {
     closePaymentModal();
-    // If they close without paying, still let them view the order
     if (pendingOnlineOrder) {
       window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
     }
@@ -262,13 +260,13 @@ function initSandboxPaymentModal() {
     try {
       // Step 1: Create Payment Intent on backend
       const intent = await createPaymentIntent(pendingOnlineOrder.id);
-      console.log(" Payment Intent initialized:", intent);
+      console.log("[Checkout] Payment Intent initialized:", intent);
 
-      // Step 2: Redirect to live tracking!
+      // Step 2: Redirect to live tracking
       window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
 
     } catch (error) {
-      console.error("Payment failed:", error);
+      console.error("[Checkout] Payment failed:", error);
       alert(`Payment error: ${error.message}`);
       if (payBtn) {
         payBtn.disabled = false;

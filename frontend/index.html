@@ -1,3 +1,6 @@
+<!-- ============================================================= -->
+<!-- FILE: frontend/index.html                                     -->
+<!-- ============================================================= -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -15,7 +18,7 @@
     <!-- Official Google Identity Services SDK -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-    <!-- Link to our CSS stylesheets -->
+    <!-- Centralized Stylesheets -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/responsive.css">
 </head>
@@ -34,11 +37,11 @@
 
             <!-- Right-side actions: User Account + Cart -->
             <div class="nav-actions">
-                <!-- Dynamically populated by auth.js: shows Sign In OR User Profile Dropdown -->
+                <!-- Dynamically populated by auth.js: shows pure typographic User Profile dropdown -->
                 <div id="auth-nav-container">
-                    <button id="open-auth-btn" class="btn-login">
+                    <a href="login.html" class="btn-login">
                         <span>Sign In</span>
-                    </button>
+                    </a>
                 </div>
 
                 <!-- Minimalist Pill Cart Button with item counter badge -->
@@ -111,7 +114,7 @@
     </main>
 
     <!-- ========================================================= -->
-    <!-- 5. SLIDING CART DRAWER (DOORDASH STYLE)                   -->
+    <!-- 5. SLIDING CART DRAWER                                    -->
     <!-- ========================================================= -->
     <div id="cart-backdrop" class="cart-backdrop hidden"></div>
 
@@ -124,7 +127,7 @@
         <div id="cart-items-container" class="cart-items">
             <div class="empty-cart-state">
                 <p>Your cart is empty.</p>
-                <small>Add some tasty dishes from the menu!</small>
+                <small>Add some tasty dishes from the menu to get started.</small>
             </div>
         </div>
 
@@ -150,43 +153,7 @@
     </aside>
 
     <!-- ========================================================= -->
-    <!-- 6. AUTHENTICATION POPUP MODAL (PURE GOOGLE SSO)           -->
-    <!-- ========================================================= -->
-    <div id="auth-modal" class="modal-backdrop">
-        <div class="modal-dialog sso-modal-dialog">
-            <button id="close-auth-modal-btn" class="modal-close-btn" aria-label="Close">&times;</button>
-
-            <div class="modal-body sso-modal-body">
-                <div class="sso-header">
-                    <h2 class="sso-title">Welcome to FoodExpress</h2>
-                    <p class="sso-subtitle">
-                        Sign in with your verified Google account to track live orders and manage your deliveries.
-                    </p>
-                </div>
-
-                <div id="auth-error-banner" class="auth-error-banner"></div>
-
-                <div class="google-auth-box">
-                    <button type="button" id="google-signin-btn" class="btn-google-sso">
-                        <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20">
-                            <path fill="#EA4335"
-                                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                            <path fill="#4285F4"
-                                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                            <path fill="#FBBC05"
-                                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.79l7.97-6.2z" />
-                            <path fill="#34A853"
-                                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                        </svg>
-                        <span>Continue with Google</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================================= -->
-    <!-- 7. JAVASCRIPT LOGIC (In order of dependency!)              -->
+    <!-- 6. JAVASCRIPT CONTROLLERS (In dependency order)            -->
     <!-- ========================================================= -->
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
