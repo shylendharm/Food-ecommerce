@@ -1,8 +1,9 @@
 /* =============================================================
    FILE: frontend/js/api.js
-   API CLIENT MODULE
+   API CLIENT & GLOBAL UI RUNTIME MODULE
    Centralizes all HTTP network communication with our FastAPI backend.
    Automatically manages JWT authentication and token persistence.
+   Provides unified design-system modal confirmations and alert dialogs.
    ============================================================= */
 
 // The base address of our live Python/FastAPI server
@@ -232,6 +233,16 @@ async function getMyOrders() {
     return await apiRequest("/orders/my-orders");
 }
 
+/**
+ * Cancels a customer's pending order
+ * Calls: PATCH /api/orders/{order_id}/cancel
+ */
+async function cancelOrder(orderId) {
+    return await apiRequest(`/orders/${orderId}/cancel`, {
+        method: "PATCH",
+    });
+}
+
 
 /* =============================================================
    4. RESTAURANT ADMIN & KITCHEN API FUNCTIONS
@@ -325,3 +336,181 @@ async function triggerPaymentWebhook(webhookData, signature) {
 async function getPaymentDetails(orderId) {
     return await apiRequest(`/payments/order/${orderId}`);
 }
+
+
+/* =============================================================
+   6. UNIFIED APP MODAL DIALOG ENGINE (Confirmations & Alerts)
+   Replaces native browser window.alert and window.confirm with
+   a non-blocking, accessible, design-system compliant modal.
+   ============================================================= */
+
+function getOrCreateModalContainer() {
+    let container = document.getElementById("app-global-modal-root");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "app-global-modal-root";
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
+ * Asynchronous Confirmation Dialog
+ * @param {Object} options
+ * @param {string} options.title - Header text (e.g. "Sign Out")
+ * @param {string} options.message - Body text explaining action
+ * @param {string|null} [options.tag=null] - Optional small pill tag
+ * @param {string} [options.confirmText="Confirm"] - Text on confirm button
+ * @param {string} [options.cancelText="Cancel"] - Text on cancel button
+ * @param {boolean} [options.isDanger=false] - If true, uses red danger styling
+ * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled
+ */
+function showAppConfirm({
+    title = "Confirm Action",
+    message = "Are you sure you want to proceed?",
+    tag = null,
+    confirmText = "Confirm",
+    cancelText = "Cancel",
+    isDanger = false
+} = {}) {
+    return new Promise((resolve) => {
+        const root = getOrCreateModalContainer();
+        const tagClass = isDanger ? "tag-danger" : "tag-info";
+        const confirmBtnClass = isDanger ? "btn-modal-confirm danger" : "btn-modal-confirm";
+        const tagHtml = tag ? `<span class="app-modal-tag ${tagClass}">${escapeHtml(tag)}</span>` : "";
+
+        root.innerHTML = `
+            <div class="app-modal-backdrop" id="app-modal-backdrop">
+                <div class="app-modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                    ${tagHtml}
+                    <h3 class="app-modal-title" id="modal-title">${escapeHtml(title)}</h3>
+                    <p class="app-modal-message">${escapeHtml(message)}</p>
+                    <div class="app-modal-actions">
+                        <button type="button" class="btn-modal-cancel" id="btn-modal-cancel">
+                            ${escapeHtml(cancelText)}
+                        </button>
+                        <button type="button" class="${confirmBtnClass}" id="btn-modal-confirm">
+                            ${escapeHtml(confirmText)}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const backdrop = document.getElementById("app-modal-backdrop");
+        const confirmBtn = document.getElementById("btn-modal-confirm");
+        const cancelBtn = document.getElementById("btn-modal-cancel");
+
+        // Trigger entrance transition
+        requestAnimationFrame(() => {
+            backdrop.classList.add("open");
+            confirmBtn?.focus();
+        });
+
+        function cleanup(result) {
+            backdrop.classList.remove("open");
+            setTimeout(() => {
+                root.innerHTML = "";
+            }, 200);
+            document.removeEventListener("keydown", handleKeydown);
+            resolve(result);
+        }
+
+        function handleKeydown(e) {
+            if (e.key === "Escape") {
+                cleanup(false);
+            }
+        }
+
+        confirmBtn?.addEventListener("click", () => cleanup(true));
+        cancelBtn?.addEventListener("click", () => cleanup(false));
+        backdrop?.addEventListener("click", (e) => {
+            if (e.target === backdrop) cleanup(false);
+        });
+        document.addEventListener("keydown", handleKeydown);
+    });
+}
+
+/**
+ * Asynchronous Alert Dialog
+ * @param {Object} options
+ * @param {string} options.title - Header text
+ * @param {string} options.message - Body text
+ * @param {string|null} [options.tag=null] - Optional small pill tag
+ * @param {string} [options.confirmText="OK"] - Text on dismiss button
+ * @param {"info"|"warning"|"danger"} [options.type="info"]
+ * @returns {Promise<void>}
+ */
+function showAppAlert({
+    title = "Notice",
+    message = "",
+    tag = null,
+    confirmText = "OK",
+    type = "info"
+} = {}) {
+    return new Promise((resolve) => {
+        const root = getOrCreateModalContainer();
+        let tagClass = "tag-info";
+        if (type === "danger") tagClass = "tag-danger";
+        else if (type === "warning") tagClass = "tag-warning";
+        const tagHtml = tag ? `<span class="app-modal-tag ${tagClass}">${escapeHtml(tag)}</span>` : "";
+
+        root.innerHTML = `
+            <div class="app-modal-backdrop" id="app-modal-backdrop">
+                <div class="app-modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                    ${tagHtml}
+                    <h3 class="app-modal-title" id="modal-title">${escapeHtml(title)}</h3>
+                    <p class="app-modal-message">${escapeHtml(message)}</p>
+                    <div class="app-modal-actions">
+                        <button type="button" class="btn-modal-confirm" id="btn-modal-ok">
+                            ${escapeHtml(confirmText)}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const backdrop = document.getElementById("app-modal-backdrop");
+        const okBtn = document.getElementById("btn-modal-ok");
+
+        requestAnimationFrame(() => {
+            backdrop.classList.add("open");
+            okBtn?.focus();
+        });
+
+        function cleanup() {
+            backdrop.classList.remove("open");
+            setTimeout(() => {
+                root.innerHTML = "";
+            }, 200);
+            document.removeEventListener("keydown", handleKeydown);
+            resolve();
+        }
+
+        function handleKeydown(e) {
+            if (e.key === "Escape" || e.key === "Enter") {
+                cleanup();
+            }
+        }
+
+        okBtn?.addEventListener("click", cleanup);
+        backdrop?.addEventListener("click", (e) => {
+            if (e.target === backdrop) cleanup();
+        });
+        document.addEventListener("keydown", handleKeydown);
+    });
+}
+
+// Expose modal helpers globally on window object
+window.showAppConfirm = showAppConfirm;
+window.showAppAlert = showAppAlert;

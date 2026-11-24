@@ -2,7 +2,8 @@
    FILE: frontend/js/auth.js
    AUTHENTICATION & ROUTE GUARD CONTROLLER
    Enforces mandatory global authentication guards, onboarding
-   lifecycle routing, typographic navbar, and live Google OAuth2 SSO.
+   lifecycle routing, typographic navbar, live Google OAuth2 SSO,
+   and clean minimalist sign-out confirmation.
    ============================================================= */
 
 // Official Google Cloud OAuth 2.0 Web Client ID
@@ -170,9 +171,22 @@ function initAuthNavbar() {
         }
     });
 
-    logoutBtn?.addEventListener("click", () => {
-        logoutUser();
-        window.location.href = "login.html";
+    // Intercept Sign Out with Clean Minimalist Confirmation Modal
+    logoutBtn?.addEventListener("click", async () => {
+        dropdown?.classList.remove("show");
+
+        const confirmed = await showAppConfirm({
+            title: "Sign Out",
+            message: "Are you sure you want to sign out of FoodExpress? You will need to sign in again to place orders.",
+            confirmText: "Sign Out",
+            cancelText: "Stay",
+            isDanger: true
+        });
+
+        if (confirmed) {
+            logoutUser();
+            window.location.href = "login.html";
+        }
     });
 }
 
@@ -323,6 +337,12 @@ function initGoogleIdentityServices() {
 window.handleGoogleCredentialResponse = async function (response) {
     if (!response || !response.credential) return;
 
+    // Visual feedback: dim container to indicate active cryptographic verification
+    const googleContainer = document.getElementById("google-sso-btn");
+    const submitBtn = document.getElementById("portal-submit-btn");
+    if (googleContainer) googleContainer.style.opacity = "0.5";
+    if (submitBtn) submitBtn.disabled = true;
+
     try {
         // Send authentic Google ID token to FastAPI backend
         const data = await loginWithGoogle(response.credential);
@@ -348,6 +368,8 @@ window.handleGoogleCredentialResponse = async function (response) {
 
         window.location.href = "index.html";
     } catch (error) {
+        if (googleContainer) googleContainer.style.opacity = "1";
+        if (submitBtn) submitBtn.disabled = false;
         showPortalError(error.message || "Google Single Sign-On verification failed.");
     }
 };

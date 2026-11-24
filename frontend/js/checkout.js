@@ -2,19 +2,19 @@
    FILE: frontend/js/checkout.js
    CHECKOUT & ORDER SUBMISSION CONTROLLER
    Validates delivery info, auto-hydrates saved customer profile & default
-   address, supports per-order address overrides, and handles COD / Online payments.
+   address, handles COD, and provides resilient, deferred Online Payment flows.
    ============================================================= */
 
 // Key name used to remember delivery address across sessions
 const SAVED_ADDRESS_KEY = "foodexpress_saved_address";
 
-// Global variable to keep track of the created order during online payment flow
-let pendingOnlineOrder = null;
+// In-memory holder for the validated checkout payload while payment modal is open
+let pendingOrderPayload = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. Guard Clause A: If the cart is empty, redirect back to menu
   if (!cart || cart.length === 0) {
-    alert("Your shopping cart is empty! Redirecting you to the menu.");
+    alert("Your shopping cart is empty. Redirecting you to the menu.");
     window.location.href = "index.html";
     return;
   }
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     form.addEventListener("submit", handleOrderSubmit);
   }
 
-  // 7. Listen for sandbox modal payment button
+  // 7. Listen for sandbox modal payment and abort actions
   initSandboxPaymentModal();
 });
 
@@ -66,13 +66,13 @@ function autoFillUserDetails() {
   if (emailInput && user.email) emailInput.value = user.email;
   if (phoneInput && user.phone) phoneInput.value = user.phone;
 
-  // Requirement 2: Auto-populate default address from profile while allowing per-order edits
+  // Auto-populate default address from profile while allowing per-order edits
   const effectiveAddress = user.default_address || localStorage.getItem(SAVED_ADDRESS_KEY) || "";
   if (addressInput && effectiveAddress && !addressInput.value) {
     addressInput.value = effectiveAddress;
   }
 
-  // Unified dark design badge confirming authenticated order linkage
+  // Visual badge confirming authenticated order linkage
   const cardHeader = document.querySelector(".checkout-form-section .checkout-card h3");
   if (cardHeader && !document.getElementById("auth-linked-badge")) {
     const badge = document.createElement("div");
@@ -94,11 +94,9 @@ function initPaymentMethodToggles() {
 
   radioButtons.forEach(radio => {
     radio.addEventListener("change", (e) => {
-      // Update selected class styling
       document.querySelectorAll(".payment-option").forEach(opt => opt.classList.remove("selected"));
       radio.closest(".payment-option")?.classList.add("selected");
 
-      // Update button label
       if (e.target.value === "ONLINE") {
         if (submitBtnSpan) submitBtnSpan.textContent = "Proceed to Online Payment • ";
       } else {
@@ -141,7 +139,7 @@ function renderCheckoutSummary() {
 
 
 /* =============================================================
-   4. HANDLE ORDER SUBMISSION (COD vs ONLINE)
+   4. HANDLE ORDER SUBMISSION (COD vs DEFERRED ONLINE)
    ============================================================= */
 
 async function handleOrderSubmit(e) {
@@ -162,69 +160,66 @@ async function handleOrderSubmit(e) {
     return;
   }
 
-  // Temporarily cache the entered address for immediate browser recall
+  // Cache entered address for immediate browser recall
   localStorage.setItem(SAVED_ADDRESS_KEY, addressInput);
 
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span>Processing order...</span>`;
-  }
+  const orderPayload = {
+    customer_name: nameInput,
+    customer_email: emailInput,
+    customer_phone: phoneInput,
+    delivery_address: addressInput,
+    payment_method: paymentMethod,
+    items: cart.map(item => ({
+      menu_item_id: item.id,
+      quantity: item.quantity
+    }))
+  };
 
-  try {
-    const orderPayload = {
-      customer_name: nameInput,
-      customer_email: emailInput,
-      customer_phone: phoneInput,
-      delivery_address: addressInput,
-      payment_method: paymentMethod,
-      items: cart.map(item => ({
-        menu_item_id: item.id,
-        quantity: item.quantity
-      }))
-    };
-
-    // Submit the order to FastAPI /api/orders
-    const createdOrder = await submitOrder(orderPayload);
-    console.log("[Checkout] Order created successfully. ID:", createdOrder.id);
-
-    // Clear cart from localStorage and memory
-    cart = [];
-    if (typeof saveCartToStorage === "function") saveCartToStorage();
-
-    // ROUTE A: Cash on Delivery -> Redirect directly to live GPS tracking
-    if (paymentMethod === "COD") {
-      window.location.href = `tracking.html?order_id=${createdOrder.id}`;
-      return;
-    }
-
-    // ROUTE B: Online Payment -> Open the Sandbox Gateway Modal
-    pendingOnlineOrder = createdOrder;
-    openPaymentModal(createdOrder);
-
-  } catch (error) {
-    console.error("[Checkout] Order submission failed:", error);
-    alert(`Failed to place order: ${error.message}`);
-
+  // ROUTE A: Cash on Delivery -> Commit order immediately to MySQL
+  if (paymentMethod === "COD") {
     if (submitBtn) {
-      submitBtn.disabled = false;
-      renderCheckoutSummary();
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span>Placing order...</span>`;
     }
+
+    try {
+      const createdOrder = await submitOrder(orderPayload);
+      console.log("[Checkout] COD Order created. ID:", createdOrder.id);
+
+      cart = [];
+      if (typeof saveCartToStorage === "function") saveCartToStorage();
+      window.location.href = `tracking.html?order_id=${createdOrder.id}`;
+    } catch (error) {
+      console.error("[Checkout] COD Order failed:", error);
+      alert(`Failed to place order: ${error.message}`);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        renderCheckoutSummary();
+      }
+    }
+    return;
   }
+
+  // ROUTE B: Online Payment -> Open Sandbox Modal WITHOUT creating an order yet!
+  pendingOrderPayload = orderPayload;
+  openPaymentModal();
 }
 
 
 /* =============================================================
-   5. SANDBOX PAYMENT MODAL LOGIC
+   5. SANDBOX PAYMENT MODAL LOGIC (Deferred Order Creation)
    ============================================================= */
 
-function openPaymentModal(order) {
+function openPaymentModal() {
   const modal = document.getElementById("payment-modal");
   const modalAmount = document.getElementById("payment-modal-amount");
   const btnAmount = document.getElementById("btn-pay-modal-amount");
 
-  const formattedAmount = `$${Number(order.total_amount).toFixed(2)}`;
-  if (modalAmount) modalAmount.textContent = formattedAmount;
-  if (btnAmount) btnAmount.textContent = ` • ${formattedAmount}`;
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const formattedTotal = `$${subtotal.toFixed(2)}`;
+
+  if (modalAmount) modalAmount.textContent = formattedTotal;
+  if (btnAmount) btnAmount.textContent = ` • ${formattedTotal}`;
 
   if (modal) modal.classList.add("open");
 }
@@ -232,6 +227,16 @@ function openPaymentModal(order) {
 function closePaymentModal() {
   const modal = document.getElementById("payment-modal");
   if (modal) modal.classList.remove("open");
+
+  // Clear in-memory pending payload on cancel
+  pendingOrderPayload = null;
+
+  // Restore main submit button so customer can retry or choose COD
+  const submitBtn = document.getElementById("submit-order-btn");
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    renderCheckoutSummary();
+  }
 }
 
 function initSandboxPaymentModal() {
@@ -240,34 +245,46 @@ function initSandboxPaymentModal() {
   const paymentForm = document.getElementById("sandbox-payment-form");
   const payBtn = document.getElementById("btn-pay-sandbox");
 
+  // Clicking cancel icon aborts cleanly: NO order created, NO redirection
   closeBtn?.addEventListener("click", () => {
     closePaymentModal();
-    if (pendingOnlineOrder) {
-      window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
+  });
+
+  // Clicking outside modal aborts cleanly
+  modal?.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      closePaymentModal();
     }
   });
 
-  // When customer clicks "Authorize & Pay" on the test card
+  // Authorize & Pay: NOW we commit the order to MySQL and process the payment
   paymentForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!pendingOnlineOrder) return;
+    if (!pendingOrderPayload) return;
 
     if (payBtn) {
       payBtn.disabled = true;
-      payBtn.innerHTML = `<span>Authorizing with Bank...</span>`;
+      payBtn.innerHTML = `<span>Authorizing Payment...</span>`;
     }
 
     try {
-      // Step 1: Create Payment Intent on backend
-      const intent = await createPaymentIntent(pendingOnlineOrder.id);
-      console.log("[Checkout] Payment Intent initialized:", intent);
+      // Step 1: Commit order to MySQL now that customer authorized payment
+      const createdOrder = await submitOrder(pendingOrderPayload);
+      console.log("[Checkout] Online Order committed to MySQL. ID:", createdOrder.id);
 
-      // Step 2: Redirect to live tracking
-      window.location.href = `tracking.html?order_id=${pendingOnlineOrder.id}`;
+      // Step 2: Initialize Payment Intent with Gateway
+      await createPaymentIntent(createdOrder.id);
+
+      // Step 3: Clear shopping cart
+      cart = [];
+      if (typeof saveCartToStorage === "function") saveCartToStorage();
+
+      // Step 4: Navigate to live GPS tracking
+      window.location.href = `tracking.html?order_id=${createdOrder.id}`;
 
     } catch (error) {
-      console.error("[Checkout] Payment failed:", error);
-      alert(`Payment error: ${error.message}`);
+      console.error("[Checkout] Payment authorization failed:", error);
+      alert(`Payment authorization failed: ${error.message}`);
       if (payBtn) {
         payBtn.disabled = false;
         payBtn.innerHTML = `<span>Authorize & Pay</span>`;

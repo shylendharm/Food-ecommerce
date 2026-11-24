@@ -5,18 +5,20 @@
    Responsibilities:
    1. Fetches authentic order & logistics telemetry from FastAPI REST.
    2. Initializes Leaflet.js with Esri World Street Map (No API Key & No Watermark).
-   3. Draws route polyline and custom emoji markers (Restaurant, Customer, Rider).
+   3. Draws route polyline and custom markers (Restaurant, Customer, Rider).
    4. Connects to the full-duplex WebSocket channel (/ws/orders/{id}).
    5. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
+   6. Provides interactive customer order cancellation controls using unified design modals.
    ============================================================= */
 
-// Global holders for Leaflet map elements and WebSocket connection
+// Global holders for Leaflet map elements, WebSocket connection, and active order
 let map = null;
 let restaurantMarker = null;
 let customerMarker = null;
 let riderMarker = null;
 let routePolyline = null;
 let socket = null;
+let currentOrderId = null;
 
 
 // =============================================================
@@ -29,17 +31,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     const orderId = urlParams.get("order_id");
 
     if (!orderId) {
-        alert("No order ID provided. Returning to home page.");
+        await showAppAlert({
+            title: "Missing Order ID",
+            tag: "Navigation",
+            message: "No order ID was provided. Returning to the home storefront.",
+            confirmText: "Back to Home",
+            type: "warning"
+        });
         window.location.href = "index.html";
         return;
     }
 
+    currentOrderId = orderId;
     document.getElementById("display-order-id").textContent = orderId;
 
     try {
         // 2. Fetch the authentic order record from MySQL via FastAPI REST
         const order = await getOrderById(orderId);
-        console.log(" Order data loaded from MySQL:", order);
+        console.log("[Tracking] Order data loaded from MySQL:", order);
 
         // 3. Populate customer delivery details
         document.getElementById("track-name").textContent = order.customer_name;
@@ -69,20 +78,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 6. Fetch initial logistics coordinates, distance, and dynamic ETA
         const logisticsRes = await fetch(`http://localhost:8000/api/orders/${orderId}/logistics`);
         const logisticsData = await logisticsRes.json();
-        console.log(" Initial Logistics Telemetry:", logisticsData);
+        console.log("[Tracking] Initial Logistics Telemetry:", logisticsData);
 
         // 7. Mount the Leaflet map and place markers
         initLeafletMap(order, logisticsData.logistics);
 
-        // 8. Update initial visual stepper and metrics
+        // 8. Update initial visual stepper, metrics, and cancellation controls
         updateUIState(order.status, logisticsData.logistics);
 
-        // 9. Open persistent full-duplex WebSocket connection!
+        // 9. Open persistent full-duplex WebSocket connection
         connectTrackingWebSocket(orderId);
 
     } catch (error) {
-        console.error("Failed to load order tracking details:", error);
-        alert(`Order #${orderId} was not found in the database.`);
+        console.error("[Tracking] Failed to load order tracking details:", error);
+        await showAppAlert({
+            title: "Order Not Found",
+            tag: "Database Record",
+            message: `Order #${orderId} could not be retrieved from the server.`,
+            confirmText: "Go to Storefront",
+            type: "danger"
+        });
         window.location.href = "index.html";
     }
 });
@@ -93,7 +108,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // =============================================================
 
 /**
- * Initializes the Leaflet map with Esri World Street Map tiles, custom emoji
+ * Initializes the Leaflet map with Esri World Street Map tiles, custom
  * markers, and a dashed geodesic route line.
  */
 function initLeafletMap(order, logistics) {
@@ -106,13 +121,13 @@ function initLeafletMap(order, logistics) {
         attributionControl: false
     }).setView(restCoords, 13);
 
-    // 2. Add Esri World Street Map layer (High-resolution, No API Key, No Watermark!)
+    // 2. Add Esri World Street Map layer (High-resolution, No API Key, No Watermark)
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, TomTom',
         maxZoom: 19
     }).addTo(map);
 
-    // 3. Custom Emoji Icons using Leaflet's L.divIcon
+    // 3. Custom Icons using Leaflet L.divIcon
     const kitchenIcon = L.divIcon({
         className: 'custom-map-icon icon-kitchen',
         html: '<span class="map-pin-badge kitchen-pin">K</span>',
@@ -187,12 +202,12 @@ function calculateRiderPosition(status, restCoords, custCoords) {
 
 function connectTrackingWebSocket(orderId) {
     const wsUrl = `ws://localhost:8000/ws/orders/${orderId}`;
-    console.log(` Initiating WebSocket handshake with: ${wsUrl}`);
+    console.log(`[WebSocket] Initiating handshake with: ${wsUrl}`);
 
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-        console.log(" WebSocket connection established! Streaming live events.");
+        console.log("[WebSocket] Connection established. Streaming live events.");
         document.getElementById("ws-status-text").textContent = "Live Socket Active";
         document.getElementById("ws-dot").style.background = "#22C55E";
     };
@@ -200,7 +215,7 @@ function connectTrackingWebSocket(orderId) {
     socket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log(" Live event received from server:", data);
+            console.log("[WebSocket] Live event received from server:", data);
 
             if (data.event === "INITIAL_STATE" || data.event === "STATUS_UPDATE") {
                 const newStatus = data.status;
@@ -209,7 +224,7 @@ function connectTrackingWebSocket(orderId) {
                 // Instantly update stepper, ETA, badge, and cancellation UI
                 updateUIState(newStatus, logistics);
 
-                // Smoothly glide or remove the scooter marker
+                // Smoothly update or remove the courier marker
                 if (map) {
                     if (newStatus === "CANCELLED") {
                         if (riderMarker && map.hasLayer(riderMarker)) {
@@ -228,18 +243,18 @@ function connectTrackingWebSocket(orderId) {
                 }
             }
         } catch (e) {
-            console.error("Error processing WebSocket frame:", e);
+            console.error("[WebSocket] Error processing frame:", e);
         }
     };
 
     socket.onerror = (err) => {
-        console.error(" WebSocket error:", err);
+        console.error("[WebSocket] Error:", err);
         document.getElementById("ws-status-text").textContent = "Socket Disconnected";
         document.getElementById("ws-dot").style.background = "#EF4444";
     };
 
     socket.onclose = () => {
-        console.warn(" WebSocket connection closed. Retrying in 5 seconds...");
+        console.warn("[WebSocket] Connection closed. Retrying in 5 seconds...");
         document.getElementById("ws-status-text").textContent = "Reconnecting...";
         document.getElementById("ws-dot").style.background = "#F59E0B";
 
@@ -255,7 +270,7 @@ function connectTrackingWebSocket(orderId) {
 // =============================================================
 
 /**
- * Updates visual stepper, dynamic ETA, and handles CANCELLED state
+ * Updates visual stepper, dynamic ETA, cancellation button, and handles CANCELLED state
  */
 function updateUIState(status, logistics) {
     const headerEta = document.getElementById("header-eta-text");
@@ -263,6 +278,9 @@ function updateUIState(status, logistics) {
     const stepperCard = document.querySelector(".stepper-card");
     const wsDot = document.getElementById("ws-dot");
     const wsStatusText = document.getElementById("ws-status-text");
+
+    // Manage Cancel Button: visible ONLY while status is PENDING
+    manageCancelOrderButton(status);
 
     // =========================================================
     // CASE A: ORDER IS CANCELLED
@@ -276,7 +294,7 @@ function updateUIState(status, logistics) {
 
         // 2. Update Header ETA text
         if (headerEta) {
-            headerEta.innerHTML = `<span style="color: #DC2626; font-weight: 700;">Order Cancelled by Restaurant</span>`;
+            headerEta.innerHTML = `<span style="color: #DC2626; font-weight: 700;">Order Cancelled</span>`;
         }
 
         // 3. Render or display the cancellation alert banner
@@ -286,11 +304,10 @@ function updateUIState(status, logistics) {
             banner.id = "order-cancellation-banner";
             banner.className = "order-cancelled-banner";
             banner.innerHTML = `
-                
                 <div>
                     <div style="font-size: 1.05rem; font-weight: 800;">This Order Has Been Cancelled</div>
                     <div style="font-size: 0.88rem; opacity: 0.9; margin-top: 3px;">
-                        The restaurant voided this order. If you paid online via our Sandbox Gateway, your refund will be automatically credited.
+                        This order was cancelled. If you paid online via our Sandbox Gateway, your refund will be automatically credited.
                     </div>
                 </div>
             `;
@@ -388,3 +405,93 @@ function updateStepper(status) {
         }
     }
 }
+
+
+// =============================================================
+// 5. CUSTOMER ORDER CANCELLATION HANDLERS
+// =============================================================
+
+/**
+ * Mounts or unmounts the Cancel Order button depending on order status.
+ * Visible exclusively when status === "PENDING".
+ */
+function manageCancelOrderButton(status) {
+    const existingContainer = document.getElementById("customer-cancel-container");
+
+    if (status === "PENDING") {
+        if (!existingContainer) {
+            const container = document.createElement("div");
+            container.id = "customer-cancel-container";
+            container.style.cssText = "margin-top: 14px; text-align: center;";
+            container.innerHTML = `
+                <button id="btn-cancel-order" onclick="handleCustomerCancelOrder()" 
+                    style="background: #FFF1F2; color: #E11D48; border: 1.5px solid #FECDD3; padding: 9px 20px; border-radius: var(--radius-sm, 8px); font-weight: 700; font-size: 0.92rem; cursor: pointer; transition: all 0.2s ease;">
+                    Cancel Order
+                </button>
+            `;
+            const headerEl = document.querySelector(".tracking-header");
+            if (headerEl) {
+                headerEl.appendChild(container);
+            }
+        }
+    } else {
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+    }
+}
+
+/**
+ * Handles confirmation and dispatch of customer cancellation request
+ * using our unified design system confirmation and alert modals.
+ */
+async function handleCustomerCancelOrder() {
+    if (!currentOrderId) return;
+
+    // Trigger Design System Confirmation Modal
+    const confirmed = await showAppConfirm({
+        title: "Cancel Order",
+        tag: "Order Cancellation",
+        message: "Are you sure you want to cancel this order? This action cannot be undone.",
+        confirmText: "Yes, Cancel Order",
+        cancelText: "Keep Order",
+        isDanger: true
+    });
+
+    if (!confirmed) return;
+
+    const cancelBtn = document.getElementById("btn-cancel-order");
+    if (cancelBtn) {
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = "Cancelling Order...";
+        cancelBtn.style.opacity = "0.6";
+        cancelBtn.style.cursor = "not-allowed";
+    }
+
+    try {
+        const updatedOrder = await cancelOrder(currentOrderId);
+        console.log("[Cancellation] Order cancelled successfully:", updatedOrder);
+
+        // Instantly transition UI to CANCELLED state
+        updateUIState("CANCELLED", null);
+    } catch (error) {
+        console.error("[Cancellation] Error:", error);
+        await showAppAlert({
+            title: "Cancellation Failed",
+            tag: "State Machine",
+            message: error.message || "Could not cancel order.",
+            confirmText: "Understand",
+            type: "danger"
+        });
+
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = "Cancel Order";
+            cancelBtn.style.opacity = "1";
+            cancelBtn.style.cursor = "pointer";
+        }
+    }
+}
+
+// Expose handler globally for the button's inline onclick attribute
+window.handleCustomerCancelOrder = handleCustomerCancelOrder;

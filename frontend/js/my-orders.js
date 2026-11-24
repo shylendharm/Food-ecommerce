@@ -1,7 +1,8 @@
 /* =============================================================
    CUSTOMER PAST ORDERS CONTROLLER (frontend/js/my-orders.js)
    Fetches and renders order history for the authenticated customer,
-   with contextual status pills, live indicators, and 1-click reorder.
+   with contextual status pills, live indicators, 1-click reorder,
+   and design-system compliant customer cancellation dialogs.
    ============================================================= */
 
 // In-memory cache of orders for instant 1-click reordering
@@ -25,7 +26,6 @@ async function loadCustomerOrders() {
     if (!isAuthenticated()) {
         container.innerHTML = `
             <div class="empty-cart-state" style="padding: 60px 20px; text-align: center; background: white; border-radius: var(--radius-md); border: 1px solid var(--border);">
-                
                 <h3 style="margin: 14px 0 8px; font-weight: 700;">Please Sign In</h3>
                 <p style="color: var(--text-muted); margin-bottom: 20px;">You need to be logged in to view your past orders and receipts.</p>
                 <a href="index.html" class="place-order-btn" style="display: inline-block; text-decoration: none; max-width: 200px; margin: 0 auto;">Go to Storefront</a>
@@ -49,7 +49,6 @@ async function loadCustomerOrders() {
         if (orders.length === 0) {
             container.innerHTML = `
                 <div class="empty-cart-state" style="padding: 60px 20px; text-align: center; background: white; border-radius: var(--radius-md); border: 1px solid var(--border);">
-                    
                     <h3 style="margin: 14px 0 8px; font-weight: 700;">No Orders Yet</h3>
                     <p style="color: var(--text-muted); margin-bottom: 20px;">You haven't placed any food orders yet. Ready to try something delicious?</p>
                     <a href="index.html" class="place-order-btn" style="display: inline-block; text-decoration: none; max-width: 200px; margin: 0 auto;">Browse Menu</a>
@@ -62,7 +61,7 @@ async function loadCustomerOrders() {
         container.innerHTML = orders.map(order => renderOrderCard(order)).join("");
 
     } catch (error) {
-        console.error("Failed to load customer orders:", error);
+        console.error("[Orders] Failed to load customer orders:", error);
         container.innerHTML = `
             <div style="background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; padding: 20px; border-radius: var(--radius-md); text-align: center;">
                 <p><strong>Failed to load orders:</strong> ${error.message}</p>
@@ -137,11 +136,12 @@ function renderOrderCard(order) {
 }
 
 /**
- * Contextual Action Buttons depending on whether order is Active, Delivered, or Cancelled
+ * Contextual Action Buttons depending on whether order is Pending, Active, Delivered, or Cancelled
  */
 function renderOrderActionButtons(order) {
     const isCancelled = order.status === "CANCELLED";
     const isDelivered = order.status === "DELIVERED";
+    const isPending = order.status === "PENDING";
     const isActive = !isCancelled && !isDelivered;
 
     let trackButtonHtml = "";
@@ -168,15 +168,21 @@ function renderOrderActionButtons(order) {
         `;
     }
 
-    // 1-Click Reorder Button (Available on past Delivered or Cancelled orders)
+    // Cancel Button: Available exclusively when order is PENDING
+    const cancelButtonHtml = isPending ? `
+        <button id="cancel-btn-${order.id}" onclick="handleCancelFromHistory(${order.id})" class="btn-login" style="background: #FFF1F2; color: #E11D48; border: 1.5px solid #FECDD3; padding: 8px 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;">
+            <span>Cancel</span>
+        </button>
+    ` : "";
+
+    // 1-Click Reorder Button: Available on past Delivered or Cancelled orders
     const reorderButtonHtml = (isDelivered || isCancelled) ? `
         <button onclick="handleReorder(${order.id})" class="btn-login" style="background: white; border: 1.5px solid var(--border); color: var(--text-main); padding: 8px 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
-            
             <span>Reorder</span>
         </button>
     ` : "";
 
-    return `${reorderButtonHtml} ${trackButtonHtml}`;
+    return `${cancelButtonHtml} ${reorderButtonHtml} ${trackButtonHtml}`;
 }
 
 
@@ -184,10 +190,15 @@ function renderOrderActionButtons(order) {
    3. 1-CLICK INSTANT REORDER HANDLER
    ============================================================= */
 
-window.handleReorder = function (orderId) {
+window.handleReorder = async function (orderId) {
     const order = currentCustomerOrders.find(o => o.id === orderId);
     if (!order || !order.items || order.items.length === 0) {
-        alert("Unable to retrieve items for this order.");
+        await showAppAlert({
+            title: "Reorder Notice",
+            tag: "Cart",
+            message: "Unable to retrieve items for this order.",
+            type: "warning"
+        });
         return;
     }
 
@@ -218,6 +229,63 @@ window.handleReorder = function (orderId) {
     });
 
     localStorage.setItem("foodexpress_cart", JSON.stringify(activeCart));
-    alert(`Added ${order.items.length} items from Order #${orderId} to your cart!`);
+
+    await showAppAlert({
+        title: "Cart Updated",
+        tag: "Reorder",
+        message: `Added ${order.items.length} items from Order #${orderId} to your cart.`,
+        confirmText: "Go to Menu",
+        type: "info"
+    });
+
     window.location.href = "index.html";
+};
+
+
+/* =============================================================
+   4. CUSTOMER ORDER CANCELLATION HANDLER
+   ============================================================= */
+
+window.handleCancelFromHistory = async function (orderId) {
+    // Design System Confirmation Modal
+    const confirmed = await showAppConfirm({
+        title: "Cancel Order",
+        tag: "Order Cancellation",
+        message: `Are you sure you want to cancel Order #${orderId}? This action cannot be undone.`,
+        confirmText: "Yes, Cancel Order",
+        cancelText: "Keep Order",
+        isDanger: true
+    });
+
+    if (!confirmed) return;
+
+    const btn = document.getElementById(`cancel-btn-${orderId}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Cancelling...";
+        btn.style.opacity = "0.6";
+        btn.style.cursor = "not-allowed";
+    }
+
+    try {
+        await cancelOrder(orderId);
+        // Refresh the order history list in-place
+        await loadCustomerOrders();
+    } catch (error) {
+        console.error(`[Order History] Failed to cancel Order #${orderId}:`, error);
+        await showAppAlert({
+            title: "Cancellation Failed",
+            tag: "State Machine",
+            message: error.message || `Could not cancel Order #${orderId}.`,
+            confirmText: "Understand",
+            type: "danger"
+        });
+
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Cancel";
+            btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
+        }
+    }
 };

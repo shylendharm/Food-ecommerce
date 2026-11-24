@@ -2,7 +2,7 @@
    FILE: frontend/js/cart.js
    SHOPPING CART STATE & DRAWER CONTROLLER
    Manages cart items in localStorage, calculations, drawer animations,
-   and clean checkout navigation routing.
+   and clean non-intrusive multi-item adding.
    ============================================================= */
 
 // Key name used to store cart data inside the browser's localStorage
@@ -42,8 +42,9 @@ function saveCartToStorage() {
    ============================================================= */
 
 /**
- * Adds a dish to the shopping cart
- * If already in cart, increases its quantity by 1
+ * Adds a dish to the shopping cart.
+ * Updates local storage, syncs totals and card steppers without
+ * interrupting the customer by forcing the drawer open!
  */
 function addToCart(dish) {
     const existingItem = cart.find(item => item.id === dish.id);
@@ -63,7 +64,9 @@ function addToCart(dish) {
 
     saveCartToStorage();
     updateCartUI();
-    openCartDrawer();
+
+    // Trigger subtle bump animation on navbar cart pill for visual confirmation
+    animateNavbarCartBadge();
 }
 
 /**
@@ -83,6 +86,7 @@ function updateQuantity(dishId, change) {
 
     saveCartToStorage();
     updateCartUI();
+    animateNavbarCartBadge();
 }
 
 /**
@@ -92,6 +96,7 @@ function removeFromCart(dishId) {
     cart = cart.filter(item => item.id !== dishId);
     saveCartToStorage();
     updateCartUI();
+    animateNavbarCartBadge();
 }
 
 /**
@@ -163,6 +168,22 @@ function updateCartUI() {
     `).join("");
 }
 
+/**
+ * Subtle pulse micro-animation on the navbar cart pill when an item is added
+ */
+function animateNavbarCartBadge() {
+    const badge = document.getElementById("cart-count-badge");
+    const cartBtn = document.getElementById("cart-toggle-btn");
+    if (!badge && !cartBtn) return;
+
+    const target = badge || cartBtn;
+    target.style.transition = "transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+    target.style.transform = "scale(1.25)";
+    setTimeout(() => {
+        target.style.transform = "scale(1)";
+    }, 160);
+}
+
 
 /* =============================================================
    4. DRAWER SLIDE ANIMATIONS (Open / Close)
@@ -225,7 +246,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Initial render of cart from localStorage
     updateCartUI();
 
-    // 2. Open cart button in navbar
+    // 2. Open cart button in navbar (The only trigger for the drawer!)
     const openBtn = document.getElementById("cart-toggle-btn");
     if (openBtn) {
         openBtn.addEventListener("click", openCartDrawer);

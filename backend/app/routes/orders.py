@@ -1,3 +1,18 @@
+# =============================================================
+# FILE: backend/app/routes/orders.py
+# =============================================================
+
+"""
+Orders & Checkout Router
+Location: backend/app/routes/orders.py
+
+Manages:
+1. Atomic order placement with database-validated pricing.
+2. Customer order history retrieval (/my-orders).
+3. Order tracking status queries (/{order_id}).
+4. Self-serve customer order cancellation (PATCH /{order_id}/cancel).
+"""
+
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,9 +20,11 @@ from sqlalchemy.orm import Session
 
 # Import database session provider, ORM models, and security guards
 from app.database import get_db
-from app.models import MenuItem, Order, OrderItem, User
+from app.models import MenuItem, Order, OrderItem, User, OrderStatus, UserRole
 from app.schemas import OrderCreate, OrderResponse
 from app.security import get_current_user, get_optional_current_user
+from app.websocket_manager import ws_manager
+from app.logistics import compute_order_logistics
 
 router = APIRouter(
     prefix="/api/orders",
@@ -72,7 +89,7 @@ def place_order(
         delivery_address=order_payload.delivery_address,
         payment_method=order_payload.payment_method,
         total_amount=total_amount,
-        status="PENDING",
+        status=OrderStatus.PENDING,
         items=order_items_to_save
     )
 
@@ -97,7 +114,7 @@ def get_my_orders(
 ):
     """
     Retrieves all past orders belonging to the authenticated customer.
-    Protected endpoint: Requires customer login!
+    Protected endpoint: Requires customer login.
     """
     orders = db.query(Order).filter(Order.user_id == current_user.id).order_by(Order.created_at.desc()).all()
     return orders
@@ -116,5 +133,68 @@ def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Order #{order_id} was not found."
         )
+
+    return order
+
+
+@router.patch("/{order_id}/cancel", response_model=OrderResponse, summary="Cancel an order (Customer self-serve)")
+async def cancel_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Customer Self-Serve Order Cancellation:
+    1. Ownership Guard: Customer can only cancel their own order (admins hold override).
+    2. State Machine Guard: Permitted strictly while status is PENDING.
+       (Rejects with 400 if PREPARING, OUT_FOR_DELIVERY, or DELIVERED).
+    3. Mutates status to CANCELLED in MySQL.
+    4. Broadcasts real-time WebSocket event to tracking and KDS consoles.
+    """
+    order = db.query(Order).filter(Order.id == order_id).first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Order #{order_id} was not found."
+        )
+
+    # Ownership check
+    if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to cancel this order."
+        )
+
+    # State Machine Validation
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This order has already been cancelled."
+        )
+
+    if order.status in [OrderStatus.PREPARING, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Order #{order_id} cannot be cancelled because the kitchen has already started preparing it or it is out for delivery."
+        )
+
+    # Mutate state to CANCELLED
+    order.status = OrderStatus.CANCELLED
+    db.commit()
+    db.refresh(order)
+
+    # Broadcast real-time status update to active customer tracking sockets and kitchen KDS
+    try:
+        logistics = compute_order_logistics(order.status.value, order.delivery_address)
+        event_payload = {
+            "event": "STATUS_UPDATE",
+            "order_id": order.id,
+            "status": order.status.value,
+            "logistics": logistics
+        }
+        await ws_manager.broadcast_order_update(order.id, event_payload)
+    except Exception as exc:
+        print(f"[Orders] WebSocket cancellation broadcast notice: {exc}")
 
     return order
