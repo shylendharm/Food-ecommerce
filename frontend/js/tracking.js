@@ -3,10 +3,10 @@
    Location: frontend/js/tracking.js
 
    Responsibilities:
-   1. Fetches authentic order & logistics telemetry from FastAPI REST.
+   1. Fetches authentic order & logistics telemetry with JWT authentication.
    2. Initializes Leaflet.js with Esri World Street Map (No API Key & No Watermark).
-   3. Draws route polyline and custom markers (Restaurant, Customer, Rider).
-   4. Connects to the full-duplex WebSocket channel (/ws/orders/{id}).
+   3. Draws route polyline and custom markers with XSS-sanitized popups (SEC-05 Patched).
+   4. Connects to the full-duplex WebSocket channel with token handshake (SEC-07 Patched).
    5. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
    6. Provides interactive customer order cancellation controls using unified design modals.
    ============================================================= */
@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("display-order-id").textContent = orderId;
 
     try {
-        // 2. Fetch the authentic order record from MySQL via FastAPI REST
+        // 2. Fetch authentic order record from MySQL via authenticated REST
         const order = await getOrderById(orderId);
         console.log("[Tracking] Order data loaded from MySQL:", order);
 
@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             itemsContainer.innerHTML = order.items.map(item => `
                 <div class="receipt-item-row">
                     <div>
-                        <strong>${item.item_name_snapshot}</strong>
+                        <strong>${escapeHtml(item.item_name_snapshot)}</strong>
                         <small>Qty: ${item.quantity} × $${parseFloat(item.price_per_unit).toFixed(2)}</small>
                     </div>
                     <span>$${(parseFloat(item.price_per_unit) * item.quantity).toFixed(2)}</span>
@@ -75,9 +75,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             `).join("");
         }
 
-        // 6. Fetch initial logistics coordinates, distance, and dynamic ETA
-        const logisticsRes = await fetch(`http://localhost:8000/api/orders/${orderId}/logistics`);
-        const logisticsData = await logisticsRes.json();
+        // 6. Fetch initial logistics coordinates, distance, and dynamic ETA (Authenticated via apiRequest)
+        const logisticsData = await apiRequest(`/orders/${orderId}/logistics`);
         console.log("[Tracking] Initial Logistics Telemetry:", logisticsData);
 
         // 7. Mount the Leaflet map and place markers
@@ -86,15 +85,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 8. Update initial visual stepper, metrics, and cancellation controls
         updateUIState(order.status, logisticsData.logistics);
 
-        // 9. Open persistent full-duplex WebSocket connection
+        // 9. Open persistent full-duplex WebSocket connection with token handshake
         connectTrackingWebSocket(orderId);
 
     } catch (error) {
         console.error("[Tracking] Failed to load order tracking details:", error);
         await showAppAlert({
-            title: "Order Not Found",
-            tag: "Database Record",
-            message: `Order #${orderId} could not be retrieved from the server.`,
+            title: "Access Denied or Not Found",
+            tag: "Security Guard",
+            message: error.message || `Order #${orderId} could not be retrieved.`,
             confirmText: "Go to Storefront",
             type: "danger"
         });
@@ -110,6 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 /**
  * Initializes the Leaflet map with Esri World Street Map tiles, custom
  * markers, and a dashed geodesic route line.
+ * SEC-05 Patched: Sanitizes customer name and address before popup interpolation.
  */
 function initLeafletMap(order, logistics) {
     const restCoords = [logistics.restaurant_coordinates.lat, logistics.restaurant_coordinates.lon];
@@ -149,14 +149,18 @@ function initLeafletMap(order, logistics) {
         iconAnchor: [21, 21]
     });
 
-    // 4. Place Restaurant and Customer pins
+    // 4. Place Restaurant pin
     restaurantMarker = L.marker(restCoords, { icon: kitchenIcon })
         .addTo(map)
         .bindPopup("<b>FoodExpress Kitchen</b><br>Downtown Central Store");
 
+    // SEC-05 Patched: Neutralize raw HTML before binding Leaflet popup
+    const safeCustomerName = escapeHtml(order.customer_name);
+    const safeCustomerAddress = escapeHtml(order.delivery_address);
+
     customerMarker = L.marker(custCoords, { icon: customerIcon })
         .addTo(map)
-        .bindPopup(`<b>${order.customer_name}</b><br>${order.delivery_address}`);
+        .bindPopup(`<b>${safeCustomerName}</b><br>${safeCustomerAddress}`);
 
     // 5. Draw connecting route polyline
     routePolyline = L.polyline([restCoords, custCoords], {
@@ -197,17 +201,21 @@ function calculateRiderPosition(status, restCoords, custCoords) {
 
 
 // =============================================================
-// 3. REAL-TIME WEBSOCKET CLIENT & AUTO-RECONNECT
+// 3. REAL-TIME WEBSOCKET CLIENT WITH TOKEN HANDSHAKE
 // =============================================================
 
 function connectTrackingWebSocket(orderId) {
-    const wsUrl = `ws://localhost:8000/ws/orders/${orderId}`;
-    console.log(`[WebSocket] Initiating handshake with: ${wsUrl}`);
+    // SEC-07 Patched: Bind active JWT token as a handshake query parameter
+    const token = getStoredToken();
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : "";
+    const wsUrl = `ws://localhost:8000/ws/orders/${orderId}${tokenQuery}`;
+
+    console.log(`[WebSocket] Initiating authenticated handshake with: ${wsUrl}`);
 
     socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
-        console.log("[WebSocket] Connection established. Streaming live events.");
+        console.log("[WebSocket] Connection authenticated & established. Streaming live events.");
         document.getElementById("ws-status-text").textContent = "Live Socket Active";
         document.getElementById("ws-dot").style.background = "#22C55E";
     };
@@ -253,7 +261,15 @@ function connectTrackingWebSocket(orderId) {
         document.getElementById("ws-dot").style.background = "#EF4444";
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
+        // If server severed connection due to security policy (1008), do not spam reconnect
+        if (event.code === 1008) {
+            console.warn("[WebSocket] Severed by server: Policy Violation (403 Unauthorized). Halting reconnect.");
+            document.getElementById("ws-status-text").textContent = "Socket Forbidden";
+            document.getElementById("ws-dot").style.background = "#EF4444";
+            return;
+        }
+
         console.warn("[WebSocket] Connection closed. Retrying in 5 seconds...");
         document.getElementById("ws-status-text").textContent = "Reconnecting...";
         document.getElementById("ws-dot").style.background = "#F59E0B";
@@ -286,18 +302,15 @@ function updateUIState(status, logistics) {
     // CASE A: ORDER IS CANCELLED
     // =========================================================
     if (status === "CANCELLED") {
-        // 1. Update Top Hero Badge
         if (topBadge) {
             topBadge.textContent = "Order Cancelled";
             topBadge.style.cssText = "background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;";
         }
 
-        // 2. Update Header ETA text
         if (headerEta) {
             headerEta.innerHTML = `<span style="color: #DC2626; font-weight: 700;">Order Cancelled</span>`;
         }
 
-        // 3. Render or display the cancellation alert banner
         let banner = document.getElementById("order-cancellation-banner");
         if (!banner && stepperCard) {
             banner = document.createElement("div");
@@ -314,14 +327,12 @@ function updateUIState(status, logistics) {
             stepperCard.insertAdjacentElement("beforebegin", banner);
         }
 
-        // 4. Dim the stepper to indicate inactivity
         if (stepperCard) {
             stepperCard.style.opacity = "0.4";
             stepperCard.style.filter = "grayscale(80%)";
         }
         updateStepper(null);
 
-        // 5. Update Map descriptions
         document.getElementById("map-status-desc").textContent = "Order cancelled. Courier dispatch halted.";
         document.getElementById("map-distance-info").innerHTML = `<strong style="color: #DC2626;">Dispatch Status: Voided</strong>`;
 
@@ -335,7 +346,6 @@ function updateUIState(status, logistics) {
     // CASE B: ACTIVE / DELIVERED ORDER
     // =========================================================
 
-    // Clean up any cancellation banner if status was refreshed
     const existingBanner = document.getElementById("order-cancellation-banner");
     if (existingBanner) existingBanner.remove();
 
@@ -344,7 +354,6 @@ function updateUIState(status, logistics) {
         stepperCard.style.filter = "none";
     }
 
-    // Update Top Hero Badge
     if (topBadge) {
         if (status === "DELIVERED") {
             topBadge.textContent = "Delivery Complete";
@@ -355,19 +364,16 @@ function updateUIState(status, logistics) {
         }
     }
 
-    // Advance 4-Stage Stepper
     updateStepper(status);
 
     if (!logistics) return;
 
-    // Update Header ETA text
     if (status === "DELIVERED") {
         headerEta.innerHTML = `<span style="color: #16A34A; font-weight: 700;">Delivered! Enjoy your meal!</span>`;
     } else {
         headerEta.textContent = `~${logistics.estimated_minutes} Minutes (${logistics.distance_km} km away)`;
     }
 
-    // Update Map Subtitle and Distance Footer
     document.getElementById("map-status-desc").textContent = logistics.status_message;
     document.getElementById("map-distance-info").innerHTML = `
         <strong>Haversine Distance:</strong> ${logistics.distance_km} km • <strong>ETA:</strong> ${logistics.estimated_minutes} mins
@@ -381,7 +387,6 @@ function updateStepper(status) {
     const stages = ["PENDING", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"];
     const currentIndex = status ? stages.indexOf(status) : -1;
 
-    // Update Circle Badges
     stages.forEach((stage, idx) => {
         const stepEl = document.getElementById(`step-${stage}`);
         if (stepEl) {
@@ -393,7 +398,6 @@ function updateStepper(status) {
         }
     });
 
-    // Update Connecting Progress Bars (line-1, line-2, line-3)
     for (let i = 1; i <= 3; i++) {
         const lineEl = document.getElementById(`line-${i}`);
         if (lineEl) {
@@ -411,10 +415,6 @@ function updateStepper(status) {
 // 5. CUSTOMER ORDER CANCELLATION HANDLERS
 // =============================================================
 
-/**
- * Mounts or unmounts the Cancel Order button depending on order status.
- * Visible exclusively when status === "PENDING".
- */
 function manageCancelOrderButton(status) {
     const existingContainer = document.getElementById("customer-cancel-container");
 
@@ -441,14 +441,9 @@ function manageCancelOrderButton(status) {
     }
 }
 
-/**
- * Handles confirmation and dispatch of customer cancellation request
- * using our unified design system confirmation and alert modals.
- */
 async function handleCustomerCancelOrder() {
     if (!currentOrderId) return;
 
-    // Trigger Design System Confirmation Modal
     const confirmed = await showAppConfirm({
         title: "Cancel Order",
         tag: "Order Cancellation",
@@ -471,8 +466,6 @@ async function handleCustomerCancelOrder() {
     try {
         const updatedOrder = await cancelOrder(currentOrderId);
         console.log("[Cancellation] Order cancelled successfully:", updatedOrder);
-
-        // Instantly transition UI to CANCELLED state
         updateUIState("CANCELLED", null);
     } catch (error) {
         console.error("[Cancellation] Error:", error);
@@ -493,5 +486,4 @@ async function handleCustomerCancelOrder() {
     }
 }
 
-// Expose handler globally for the button's inline onclick attribute
 window.handleCustomerCancelOrder = handleCustomerCancelOrder;

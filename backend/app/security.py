@@ -1,3 +1,11 @@
+"""
+Security & Authentication Utilities
+Location: backend/app/security.py
+
+Handles Bcrypt password hashing, JWT creation/verification,
+and FastAPI route protection dependencies (get_current_user, get_current_admin).
+"""
+
 import os
 from datetime import datetime, timedelta
 from typing import Optional
@@ -15,8 +23,21 @@ from app.models import User, UserRole
 # 1. Load secret environment variables
 load_dotenv()
 
-# The secret key used to digitally sign our login tokens
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-fallback-key-change-in-production")
+# Cryptographic Token Signing Key Configuration
+FALLBACK_SECRET_KEY = "super-secret-fallback-key-change-in-production"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", FALLBACK_SECRET_KEY)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+
+# Enforce Cryptographic Production Boundary (SEC-04 Remediation)
+# Fail-fast startup guard: Halt boot if running in production with a default or missing secret key
+if ENVIRONMENT in ("production", "prod"):
+    if not SECRET_KEY or SECRET_KEY == FALLBACK_SECRET_KEY:
+        raise RuntimeError(
+            "CRITICAL SECURITY CONFIGURATION ERROR: JWT_SECRET_KEY environment variable "
+            "must be explicitly configured with a cryptographically secure secret in production mode. "
+            "Server startup halted to prevent JWT signature forgery."
+        )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # Tokens stay valid for 24 hours
 

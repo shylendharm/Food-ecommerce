@@ -9,7 +9,7 @@ Location: backend/app/routes/orders.py
 Manages:
 1. Atomic order placement with database-validated pricing.
 2. Customer order history retrieval (/my-orders).
-3. Order tracking status queries (/{order_id}).
+3. Secure, ownership-verified order tracking queries (/{order_id}) [SEC-01 Patched].
 4. Self-serve customer order cancellation (PATCH /{order_id}/cancel).
 """
 
@@ -120,11 +120,19 @@ def get_my_orders(
     return orders
 
 
-@router.get("/{order_id}", response_model=OrderResponse, summary="Track order status and view receipt")
-def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+@router.get("/{order_id}", response_model=OrderResponse, summary="Track order status and view receipt (Ownership Protected)")
+def get_order_by_id(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Retrieves complete details of an order (status, items snapshot, total, delivery info).
-    Used by the frontend order-tracking page.
+    SEC-01 Patched: Enforces strict ownership validation.
+    - Customer can only view orders linked to their own account.
+    - Administrators hold override authority to view any customer ticket.
+    - Unauthenticated callers receive 401 Unauthorized.
+    - Unauthorized customers receive 403 Forbidden.
     """
     order = db.query(Order).filter(Order.id == order_id).first()
 
@@ -132,6 +140,13 @@ def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Order #{order_id} was not found."
+        )
+
+    # Ownership Guard (IDOR Defense)
+    if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not have permission to view this order."
         )
 
     return order

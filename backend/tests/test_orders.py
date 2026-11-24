@@ -1,5 +1,5 @@
 """
-Automated Test Suite: Menu Browsing, Order Lifecycle & Customer Cancellation
+Automated Test Suite: Menu Browsing, Order Lifecycle, Customer Cancellation & Security Penetration
 Location: backend/tests/test_orders.py
 
 Tests:
@@ -7,6 +7,7 @@ Tests:
 2. Order creation edge cases (Pydantic quantity validations, non-existent menu items).
 3. Full order creation and snapshot integrity verification.
 4. Customer self-serve cancellation (Auth guard, happy path, ownership guard, state machine guard, duplicate guard).
+5. Security Penetration Suite (SEC-01 IDOR defense, unauthenticated 401 rejection, cross-user 403 rejection, admin override).
 """
 
 import uuid
@@ -50,6 +51,19 @@ def create_test_customer_auth() -> tuple[dict, dict]:
     token = login_response.json()["access_token"]
 
     return user_data, {"Authorization": f"Bearer {token}"}
+
+
+def create_test_admin_auth() -> tuple[dict, dict]:
+    """
+    Authenticates the master admin account and returns (user_data, auth_headers).
+    """
+    res = client.post(
+        "/api/auth/google",
+        json={"credential": "mock_google_token_shylendharm369@gmail.com"}
+    )
+    assert res.status_code == 200, f"Failed to authenticate master admin: {res.text}"
+    token = res.json()["access_token"]
+    return res.json()["user"], {"Authorization": f"Bearer {token}"}
 
 
 def get_first_available_menu_item() -> dict:
@@ -156,16 +170,17 @@ def test_create_and_track_order():
     Happy Path:
     1. Fetch the menu to get a real valid dish ID.
     2. Place an order via POST /api/orders (Expects 201 Created).
-    3. Retrieve the order via GET /api/orders/{id} (Expects 200 OK).
+    3. Retrieve the order via GET /api/orders/{id} with ownership token (Expects 200 OK).
     4. Verify that frozen snapshot prices and names match.
     """
+    user_data, auth_headers = create_test_customer_auth()
     target_dish = get_first_available_menu_item()
     
     order_payload = {
-        "customer_name": "Alice Tester",
-        "customer_email": "alice.test@example.com",
-        "customer_phone": "9876543210",
-        "delivery_address": "123 Test Street, Apartment 4B",
+        "customer_name": user_data["name"],
+        "customer_email": user_data["email"],
+        "customer_phone": user_data["phone"],
+        "delivery_address": user_data["default_address"],
         "payment_method": "COD",
         "items": [
             {
@@ -175,7 +190,7 @@ def test_create_and_track_order():
         ]
     }
     
-    create_res = client.post("/api/orders", json=order_payload)
+    create_res = client.post("/api/orders", json=order_payload, headers=auth_headers)
     assert create_res.status_code == 201
     created_order = create_res.json()
     
@@ -183,12 +198,12 @@ def test_create_and_track_order():
     assert order_id is not None
     assert created_order["status"] == "PENDING"
     
-    track_res = client.get(f"/api/orders/{order_id}")
+    track_res = client.get(f"/api/orders/{order_id}", headers=auth_headers)
     assert track_res.status_code == 200
     tracked_order = track_res.json()
     
     assert tracked_order["id"] == order_id
-    assert tracked_order["customer_name"] == "Alice Tester"
+    assert tracked_order["customer_name"] == user_data["name"]
     assert len(tracked_order["items"]) == 1
     
     order_item = tracked_order["items"][0]
@@ -239,8 +254,8 @@ def test_customer_cancel_pending_order_success():
     assert cancelled_data["id"] == order_id
     assert cancelled_data["status"] == "CANCELLED"
 
-    # Step 3: Verify MySQL persistence
-    fetch_res = client.get(f"/api/orders/{order_id}")
+    # Step 3: Verify MySQL persistence (Protected retrieval)
+    fetch_res = client.get(f"/api/orders/{order_id}", headers=auth_headers)
     assert fetch_res.status_code == 200
     assert fetch_res.json()["status"] == "CANCELLED"
 
@@ -273,7 +288,7 @@ def test_customer_cancel_other_user_order_forbidden():
     assert "permission" in attack_res.json()["detail"].lower()
 
     # Step 3: Verify the order remains unmolested (PENDING) in MySQL
-    fetch_res = client.get(f"/api/orders/{order_id}")
+    fetch_res = client.get(f"/api/orders/{order_id}", headers=owner_headers)
     assert fetch_res.status_code == 200
     assert fetch_res.json()["status"] == "PENDING"
 
@@ -343,3 +358,117 @@ def test_customer_cancel_already_cancelled_order_fails():
     second_cancel = client.patch(f"/api/orders/{order_id}/cancel", headers=auth_headers)
     assert second_cancel.status_code == 400
     assert "already been cancelled" in second_cancel.json()["detail"].lower()
+
+
+# =============================================================
+# 5. AUTOMATED SECURITY PENETRATION & IDOR SUITE (SEC-01)
+# =============================================================
+
+def test_get_order_unauthenticated_fails_401():
+    """
+    Penetration Test (SEC-01): An anonymous caller attempts to fetch an order receipt without a JWT.
+    Expects: HTTP 401 Unauthorized.
+    """
+    owner_user, owner_headers = create_test_customer_auth()
+    target_dish = get_first_available_menu_item()
+
+    order_payload = {
+        "customer_name": owner_user["name"],
+        "customer_email": owner_user["email"],
+        "customer_phone": owner_user["phone"],
+        "delivery_address": owner_user["default_address"],
+        "payment_method": "COD",
+        "items": [{"menu_item_id": target_dish["id"], "quantity": 1}]
+    }
+    create_res = client.post("/api/orders", json=order_payload, headers=owner_headers)
+    assert create_res.status_code == 201
+    order_id = create_res.json()["id"]
+
+    # Attempt to read order receipt with NO Authorization header
+    res = client.get(f"/api/orders/{order_id}")
+    assert res.status_code == 401
+    assert "credentials" in res.json()["detail"].lower() or "not authenticated" in res.json()["detail"].lower()
+
+
+def test_get_order_idor_attack_forbidden_403():
+    """
+    Penetration Test (SEC-01 IDOR): Customer B attempts to inspect Customer A's order receipt.
+    Expects: HTTP 403 Forbidden with permission denial message.
+    """
+    user_a, headers_a = create_test_customer_auth()
+    user_b, headers_b = create_test_customer_auth()
+    target_dish = get_first_available_menu_item()
+
+    # User A places order
+    order_payload = {
+        "customer_name": user_a["name"],
+        "customer_email": user_a["email"],
+        "customer_phone": user_a["phone"],
+        "delivery_address": user_a["default_address"],
+        "payment_method": "COD",
+        "items": [{"menu_item_id": target_dish["id"], "quantity": 1}]
+    }
+    create_res = client.post("/api/orders", json=order_payload, headers=headers_a)
+    assert create_res.status_code == 201
+    order_a_id = create_res.json()["id"]
+
+    # User B attempts to access User A's order receipt
+    attack_res = client.get(f"/api/orders/{order_a_id}", headers=headers_b)
+    assert attack_res.status_code == 403
+    assert "permission" in attack_res.json()["detail"].lower() or "forbidden" in attack_res.json()["detail"].lower()
+
+
+def test_get_order_owner_access_success_200():
+    """
+    Happy Path (SEC-01): Legitimate owner accesses their own order receipt.
+    Expects: HTTP 200 OK with full order items and customer data.
+    """
+    owner_user, owner_headers = create_test_customer_auth()
+    target_dish = get_first_available_menu_item()
+
+    order_payload = {
+        "customer_name": owner_user["name"],
+        "customer_email": owner_user["email"],
+        "customer_phone": owner_user["phone"],
+        "delivery_address": owner_user["default_address"],
+        "payment_method": "COD",
+        "items": [{"menu_item_id": target_dish["id"], "quantity": 2}]
+    }
+    create_res = client.post("/api/orders", json=order_payload, headers=owner_headers)
+    assert create_res.status_code == 201
+    order_id = create_res.json()["id"]
+
+    res = client.get(f"/api/orders/{order_id}", headers=owner_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["id"] == order_id
+    assert data["customer_email"] == owner_user["email"]
+    assert len(data["items"]) == 1
+    assert data["items"][0]["quantity"] == 2
+
+
+def test_get_order_admin_override_access_200():
+    """
+    Authorization Test (RBAC): Restaurant administrator accesses a customer's order for kitchen operations.
+    Expects: HTTP 200 OK bypass override.
+    """
+    customer_user, customer_headers = create_test_customer_auth()
+    admin_user, admin_headers = create_test_admin_auth()
+    target_dish = get_first_available_menu_item()
+
+    order_payload = {
+        "customer_name": customer_user["name"],
+        "customer_email": customer_user["email"],
+        "customer_phone": customer_user["phone"],
+        "delivery_address": customer_user["default_address"],
+        "payment_method": "COD",
+        "items": [{"menu_item_id": target_dish["id"], "quantity": 1}]
+    }
+    create_res = client.post("/api/orders", json=order_payload, headers=customer_headers)
+    assert create_res.status_code == 201
+    order_id = create_res.json()["id"]
+
+    # Admin fetches customer ticket
+    admin_res = client.get(f"/api/orders/{order_id}", headers=admin_headers)
+    assert admin_res.status_code == 200
+    assert admin_res.json()["id"] == order_id

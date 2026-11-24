@@ -1,20 +1,25 @@
+# =============================================================
+# FILE: backend/app/routes/tracking.py
+# =============================================================
+
 """
 Real-Time Tracking & WebSocket Router
 Location: backend/app/routes/tracking.py
 
 Exposes:
-1. Bidirectional WebSocket endpoint (/ws/orders/{order_id}) for live status and ETA streaming.
-2. REST logistics endpoint (/api/orders/{order_id}/logistics) for map coordinates and Haversine distance.
+1. Bidirectional WebSocket endpoint (/ws/orders/{order_id}) with token handshake auth (SEC-07 Patched).
+2. REST logistics endpoint (/api/orders/{order_id}/logistics) with ownership enforcement (SEC-07 Patched).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
+from jose import jwt, JWTError
 
-# Import database session and Order model
+# Import database session, models, and security providers
 from app.database import get_db
-from app.models import Order
-
-# Import our WebSocket connection manager and Logistics engine
+from app.models import Order, User, UserRole
+from app.security import get_current_user, SECRET_KEY, ALGORITHM
 from app.websocket_manager import ws_manager
 from app.logistics import compute_order_logistics
 
@@ -24,34 +29,61 @@ router = APIRouter(
 
 
 # =============================================================
-# 1. LIVE WEBSOCKET ENDPOINT (Full-Duplex TCP Streaming)
+# 1. LIVE WEBSOCKET ENDPOINT (Token Handshake & Ownership Guard)
 # =============================================================
 
 @router.websocket("/ws/orders/{order_id}")
 async def order_tracking_websocket(
     websocket: WebSocket,
     order_id: int,
+    token: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
-    Live WebSocket pipe for an order:
+    Live WebSocket pipe for an order.
+    SEC-07 Patched:
     1. Verifies order exists in MySQL.
-    2. Accepts connection and joins the channel for order_id.
-    3. Computes and immediately pushes initial ETA & logistics.
-    4. Keeps socket alive to receive live kitchen updates in 0ms!
+    2. Validates cryptographically signed JWT token passed via query param (?token=...).
+    3. Ownership Guard: Asserts order.user_id == token.sub (or role == ADMIN).
+    4. Rejects unauthorized connections with WS_1008_POLICY_VIOLATION before accepting.
+    5. Streams real-time ETA and courier GPS coordinates exclusively to authorized parties.
     """
-    # 1. Verify that the requested order exists in the database
+    # Step 1: Verify order exists in MySQL
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
-        # If order doesn't exist, reject the socket connection
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # 2. Connect client to the WebSocket Switchboard
+    # Step 2: Validate JWT Token presence
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Step 3: Cryptographically decode token and extract claims
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id_str = payload.get("sub")
+        role_str = payload.get("role")
+        if not user_id_str:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        token_user_id = int(user_id_str)
+    except (JWTError, ValueError):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Step 4: Ownership Verification (IDOR Defense on Real-Time Socket)
+    is_owner = (order.user_id == token_user_id)
+    is_admin = (role_str == UserRole.ADMIN.value)
+    if not is_owner and not is_admin:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    # Step 5: Authorization confirmed! Accept socket handshake
     await ws_manager.connect(order_id, websocket)
 
     try:
-        # 3. Calculate initial logistics and send immediate greeting state
+        # Calculate initial logistics and send immediate greeting frame
         logistics = compute_order_logistics(order.status.value, order.delivery_address)
         
         initial_event = {
@@ -62,32 +94,32 @@ async def order_tracking_websocket(
         }
         await websocket.send_json(initial_event)
 
-        # 4. Keep the connection open and listen for any client messages
+        # Keep connection alive in the event loop
         while True:
-            # Keeps the socket connection alive in the event loop
             client_msg = await websocket.receive_text()
-            
-            # If client sends a ping, respond with pong
             if client_msg.strip().lower() == "ping":
                 await websocket.send_json({"event": "PONG"})
 
     except WebSocketDisconnect:
-        # Safely unplug the client when they close the browser tab
         ws_manager.disconnect(order_id, websocket)
     except Exception as e:
-        print(f"⚠️ Unexpected WebSocket error on Order #{order_id}: {e}")
+        print(f"[WebSocket] Disconnected on Order #{order_id}: {e}")
         ws_manager.disconnect(order_id, websocket)
 
 
 # =============================================================
-# 2. REST LOGISTICS ENDPOINT (Standard HTTP)
+# 2. REST LOGISTICS ENDPOINT (Ownership Protected)
 # =============================================================
 
-@router.get("/api/orders/{order_id}/logistics", summary="Get GPS coordinates and Haversine distance for an order")
-def get_order_logistics(order_id: int, db: Session = Depends(get_db)):
+@router.get("/api/orders/{order_id}/logistics", summary="Get GPS coordinates and Haversine distance (Ownership Protected)")
+def get_order_logistics(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
-    HTTP REST endpoint to fetch coordinates, Haversine distance, and ETA
-    for map rendering and initial page load.
+    HTTP REST endpoint to fetch coordinates, Haversine distance, and ETA.
+    SEC-07 Patched: Requires valid authentication and enforces order ownership.
     """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -96,12 +128,12 @@ def get_order_logistics(order_id: int, db: Session = Depends(get_db)):
             detail=f"Order #{order_id} does not exist."
         )
 
+    # Ownership Guard (IDOR Defense)
+    if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not have permission to view delivery telemetry for this order."
+        )
+
     logistics = compute_order_logistics(order.status.value, order.delivery_address)
-    
-    return {
-        "order_id": order.id,
-        "customer_name": order.customer_name,
-        "delivery_address": order.delivery_address,
-        "status": order.status.value,
-        "logistics": logistics
-    }
+    return {"order_id": order_id, "logistics": logistics}

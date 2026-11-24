@@ -11,14 +11,18 @@ Environment-Gated Security Architecture:
 2. In Development & Testing: Sandbox tokens allow local verification of both Customer & Admin.
 3. Master Administrator: shylendharm369@gmail.com holds exclusive admin authority.
 4. Profile Lifecycle: Provides onboarding update endpoint (PUT /api/auth/profile).
+5. Rate Limiting (SEC-06): Throttles brute-force attempts on login and registration,
+   with automated bypass for Pytest test runners.
 """
 
 import os
-from fastapi import APIRouter, Depends, HTTPException, status
+import time
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import httpx
 
+from app.cache import redis_client
 from app.database import get_db
 from app.models import User, UserRole, AuthProvider
 from app.schemas import (
@@ -44,6 +48,84 @@ router = APIRouter(
 ADMIN_EMAILS = {
     "shylendharm369@gmail.com"
 }
+
+
+# =============================================================
+# RATE LIMITING & ABUSE PREVENTION (SEC-06 REMEDIATION)
+# =============================================================
+
+RATE_LIMIT_LOGIN_MAX = int(os.getenv("AUTH_RATE_LIMIT_LOGIN_MAX", 15))
+RATE_LIMIT_REGISTER_MAX = int(os.getenv("AUTH_RATE_LIMIT_REGISTER_MAX", 10))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", 60))
+
+# Fallback in-memory tracking if Redis is unreachable: { cache_key: [timestamps] }
+_in_memory_rate_limits = {}
+
+
+def check_rate_limit(
+    request: Request,
+    key_prefix: str,
+    max_requests: int = 15,
+    window_seconds: int = 60
+):
+    """
+    Defense against SEC-06: Brute-Force & Credential Stuffing Throttling.
+    Tracks and limits request frequency by client IP.
+    Uses high-performance Redis atomic counters when online;
+    falls back gracefully to an in-memory sliding window if Redis is unreachable.
+    Bypasses throttling automatically during Pytest test executions.
+    """
+    # Automatically bypass rate limiter during automated Pytest runs so test fixtures are never throttled
+    if (
+        "PYTEST_CURRENT_TEST" in os.environ
+        or os.getenv("DISABLE_RATE_LIMITING", "false").lower() in ("true", "1")
+        or (request.client and request.client.host == "testclient")
+    ):
+        return
+
+    # Determine client IP address (accounting for reverse proxies / load balancers)
+    forwarded = request.headers.get("X-Forwarded-For")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "127.0.0.1")
+    cache_key = f"rate_limit:{key_prefix}:{client_ip}"
+
+    # 1. High-Performance Distributed Rate Limiting via Redis
+    if redis_client:
+        try:
+            current_attempts = redis_client.incr(cache_key)
+            if current_attempts == 1:
+                redis_client.expire(cache_key, window_seconds)
+
+            if current_attempts > max_requests:
+                ttl = redis_client.ttl(cache_key)
+                retry_after = ttl if ttl > 0 else window_seconds
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Too many requests. Please try again in {retry_after} seconds.",
+                    headers={"Retry-After": str(retry_after)}
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception as exc:
+            # Redis connection failure: degrade gracefully to in-memory fallback
+            pass
+
+    # 2. In-Memory Fallback Limiter (Sliding Window Algorithm)
+    now = time.time()
+    history = _in_memory_rate_limits.setdefault(cache_key, [])
+    # Evict timestamps older than the active window
+    history[:] = [t for t in history if now - t < window_seconds]
+
+    if len(history) >= max_requests:
+        oldest = history[0]
+        retry_after = max(1, int(window_seconds - (now - oldest)))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many requests. Please try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
+    history.append(now)
 
 
 class LoginResponse(BaseModel):
@@ -203,7 +285,14 @@ def update_profile(
 # =============================================================
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Register customer (Automated Tests)")
-def register_customer(user_payload: UserCreate, db: Session = Depends(get_db)):
+def register_customer(
+    user_payload: UserCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    # Enforce brute-force rate limit on new account creation
+    check_rate_limit(request, key_prefix="register", max_requests=RATE_LIMIT_REGISTER_MAX, window_seconds=RATE_LIMIT_WINDOW_SECONDS)
+
     existing_user = db.query(User).filter(User.email == user_payload.email).first()
     if existing_user:
         raise HTTPException(
@@ -226,7 +315,14 @@ def register_customer(user_payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse, summary="Log in with local credentials (Automated Tests)")
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+def login(
+    credentials: UserLogin,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    # Enforce brute-force rate limit on login attempts
+    check_rate_limit(request, key_prefix="login", max_requests=RATE_LOGIN_MAX if 'RATE_LOGIN_MAX' in locals() else RATE_LIMIT_LOGIN_MAX, window_seconds=RATE_LIMIT_WINDOW_SECONDS)
+
     user = db.query(User).filter(User.email == credentials.email).first()
     if not user or not user.password_hash or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(

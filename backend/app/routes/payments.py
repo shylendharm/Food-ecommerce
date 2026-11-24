@@ -1,3 +1,17 @@
+# =============================================================
+# FILE: backend/app/routes/payments.py
+# =============================================================
+
+"""
+Payments & Financial Settlements Router
+Location: backend/app/routes/payments.py
+
+Manages:
+1. Payment intent initialization with ownership checks (SEC-02 Patched).
+2. Asynchronous bank webhook processing with HMAC-SHA256 verification.
+3. Financial ledger queries with strict IDOR defense (SEC-02 Patched).
+"""
+
 import json
 from decimal import Decimal
 from typing import Optional
@@ -6,14 +20,15 @@ from sqlalchemy.orm import Session
 
 # Import database session, models, and schemas
 from app.database import get_db
-from app.models import Order, Payment, PaymentStatus, OrderStatus
+from app.models import Order, Payment, PaymentStatus, OrderStatus, User, UserRole
 from app.schemas import (
     PaymentIntentCreate,
     PaymentIntentResponse,
     PaymentResponse
 )
+from app.security import get_current_user
 
-# Import our cryptographic gateway engine
+# Import cryptographic gateway engine
 from app.payment_gateway import (
     create_payment_order,
     verify_webhook_signature
@@ -29,14 +44,19 @@ router = APIRouter(
 # 1. CREATE PAYMENT INTENT (Called by Frontend Checkout)
 # =============================================================
 
-@router.post("/create-intent", response_model=PaymentIntentResponse, summary="Initialize online payment session for an order")
-def create_payment_intent(payload: PaymentIntentCreate, db: Session = Depends(get_db)):
+@router.post("/create-intent", response_model=PaymentIntentResponse, summary="Initialize online payment session (Ownership Protected)")
+def create_payment_intent(
+    payload: PaymentIntentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Starts an online payment session:
     1. Looks up the order in MySQL to get authoritative total price (prevents price tampering!).
-    2. Generates a gateway transaction ticket.
-    3. Records a PENDING payment in MySQL.
-    4. Returns session metadata so the frontend can open the card modal.
+    2. SEC-02 Patched: Verifies that caller owns this order before initializing payment.
+    3. Generates a gateway transaction ticket.
+    4. Records a PENDING payment in MySQL.
+    5. Returns session metadata so the frontend can open the card modal.
     """
     # 1. Fetch the real order from MySQL
     order = db.query(Order).filter(Order.id == payload.order_id).first()
@@ -46,11 +66,18 @@ def create_payment_intent(payload: PaymentIntentCreate, db: Session = Depends(ge
             detail=f"Order #{payload.order_id} does not exist."
         )
 
+    # Ownership Guard (IDOR Defense)
+    if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not have permission to initiate payment for this order."
+        )
+
     # If already delivered or cancelled, don't allow paying
-    if order.status == OrderStatus.DELIVERED:
+    if order.status in [OrderStatus.DELIVERED, OrderStatus.CANCELLED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This order has already been completed."
+            detail=f"Cannot initiate payment: Order #{order.id} is already {order.status.value}."
         )
 
     # 2. Call gateway engine to initialize transaction
@@ -107,7 +134,6 @@ async def payment_gateway_webhook(
     5. Implements idempotency: If webhook arrives twice, safely ignores duplicate.
     """
     # Step 1: Read the exact raw incoming bytes
-    # (Do not use Pydantic here because any formatting change alters the hash!)
     payload_bytes = await request.body()
 
     # Step 2: Cryptographic Signature Verification
@@ -122,7 +148,7 @@ async def payment_gateway_webhook(
         data = json.loads(payload_bytes.decode("utf-8"))
         transaction_id = data.get("transaction_id")
         order_id = data.get("order_id")
-        event_status = data.get("status") # "SUCCESS" or "FAILED"
+        event_status = data.get("status")  # "SUCCESS" or "FAILED"
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -137,12 +163,11 @@ async def payment_gateway_webhook(
             detail=f"Transaction '{transaction_id}' was not found in our ledger."
         )
 
-    # Step 5: IDEMPOTENCY CHECK (Interview Favorite)
-    # If the payment was already marked SUCCESS on a previous retry, do nothing!
+    # Step 5: IDEMPOTENCY CHECK
     if payment.status == PaymentStatus.SUCCESS:
         return {"status": "already_processed", "message": "Payment already confirmed."}
 
-    # Step 6: Process the financial settlement
+    # Step 6: Process financial settlement
     order = db.query(Order).filter(Order.id == order_id).first()
 
     if event_status == "SUCCESS":
@@ -167,15 +192,40 @@ async def payment_gateway_webhook(
 # 3. GET PAYMENT STATUS FOR AN ORDER
 # =============================================================
 
-@router.get("/order/{order_id}", response_model=PaymentResponse, summary="Get payment details for an order")
-def get_payment_for_order(order_id: int, db: Session = Depends(get_db)):
+@router.get("/order/{order_id}", response_model=PaymentResponse, summary="Get payment details for an order (Ownership Protected)")
+def get_payment_for_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Retrieves the financial settlement record for an order.
+    SEC-02 Patched: Enforces strict ownership validation.
+    - Customers can only review payment receipts for their own orders.
+    - Administrators hold audit authority to view all settlements.
+    - Unauthorized access is rejected with 403 Forbidden.
     """
+    # 1. Fetch order to verify ownership before disclosing financial details
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Order #{order_id} was not found."
+        )
+
+    # Ownership Guard (IDOR Defense)
+    if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not have permission to view payment records for this order."
+        )
+
+    # 2. Fetch the corresponding payment record
     payment = db.query(Payment).filter(Payment.order_id == order_id).first()
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No payment record found for Order #{order_id}."
         )
+
     return payment
