@@ -1,7 +1,3 @@
-# =============================================================
-# FILE: backend/alembic/versions/ae1850186102_add_user_default_address.py
-# =============================================================
-
 """add_user_default_address
 
 Revision ID: ae1850186102

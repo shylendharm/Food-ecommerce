@@ -1,14 +1,4 @@
-"""
-Automated Test Suite: Menu Browsing, Order Lifecycle, Customer Cancellation & Security Penetration
-Location: backend/tests/test_orders.py
-
-Tests:
-1. Menu & category catalog queries and vegetarian filters.
-2. Order creation edge cases (Pydantic quantity validations, non-existent menu items).
-3. Full order creation and snapshot integrity verification.
-4. Customer self-serve cancellation (Auth guard, happy path, ownership guard, state machine guard, duplicate guard).
-5. Security Penetration Suite (SEC-01 IDOR defense, unauthenticated 401 rejection, cross-user 403 rejection, admin override).
-"""
+"""Integration tests for order placement and pessimistic locking."""
 
 import uuid
 import pytest
@@ -21,9 +11,7 @@ from app.models import Order, OrderStatus
 client = TestClient(app)
 
 
-# =============================================================
 # HELPER FIXTURES: USER REGISTRATION & AUTH TOKENS
-# =============================================================
 
 def create_test_customer_auth() -> tuple[dict, dict]:
     """
@@ -77,9 +65,7 @@ def get_first_available_menu_item() -> dict:
     return dishes[0]
 
 
-# =============================================================
 # 1. MENU & CATEGORIES TESTS
-# =============================================================
 
 def test_get_categories():
     """
@@ -109,9 +95,7 @@ def test_filter_menu_by_veg():
         assert dish["is_veg"] is True
 
 
-# =============================================================
 # 2. CHECKOUT EDGE CASES
-# =============================================================
 
 def test_order_invalid_quantity_fails():
     """
@@ -161,9 +145,7 @@ def test_order_nonexistent_item_fails():
     assert "does not exist" in response.json()["detail"].lower()
 
 
-# =============================================================
 # 3. COMPLETE ORDER & TRACKING LIFECYCLE
-# =============================================================
 
 def test_create_and_track_order():
     """
@@ -211,9 +193,7 @@ def test_create_and_track_order():
     assert order_item["quantity"] == 2
 
 
-# =============================================================
 # 4. CUSTOMER ORDER CANCELLATION TESTS
-# =============================================================
 
 def test_cancel_order_unauthenticated_fails():
     """
@@ -360,9 +340,7 @@ def test_customer_cancel_already_cancelled_order_fails():
     assert "already been cancelled" in second_cancel.json()["detail"].lower()
 
 
-# =============================================================
 # 5. AUTOMATED SECURITY PENETRATION & IDOR SUITE (SEC-01)
-# =============================================================
 
 def test_get_order_unauthenticated_fails_401():
     """

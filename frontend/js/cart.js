@@ -1,10 +1,4 @@
-/* =============================================================
-   FILE: frontend/js/cart.js
-   SHOPPING CART STATE & DRAWER CONTROLLER
-   Manages user-scoped cart items in localStorage, guest migration,
-   calculations, drawer animations, and multi-user isolation.
-   Integrated with Unified FoodExpress Modal Dialog Engine.
-   ============================================================= */
+// Shopping cart state, local persistence, and drawer UI
 
 /**
  * Computes an isolated storage key scoped to the authenticated customer.
@@ -26,9 +20,7 @@ function getCartStorageKey() {
 let cart = loadCartFromStorage();
 
 
-/* =============================================================
-   1. LOCAL STORAGE SYNC & SELF-HEALING GUEST MIGRATION
-   ============================================================= */
+// Cart persistence and storage sync
 
 /**
  * Reads the saved cart from localStorage scoped to the active user.
@@ -86,9 +78,7 @@ function saveCartToStorage() {
 }
 
 
-/* =============================================================
-   2. POLYMORPHIC CART MUTATIONS (Add, Increment, Decrement, Remove)
-   ============================================================= */
+// Cart mutations (add, update, remove)
 
 /**
  * Adds a dish to the active user's cart.
@@ -114,7 +104,7 @@ function addToCart(dishOrId, name, price, imageUrl) {
         isVeg = false;
     }
 
-    // Defensive NaN Guard
+    // Fallback if price is missing or invalid
     if (isNaN(dishPrice)) {
         console.error("[Cart] Invalid price received for dish:", dishOrId, price);
         dishPrice = 0;
@@ -183,9 +173,7 @@ function clearCart() {
 }
 
 
-/* =============================================================
-   3. UI RENDERING & PRICE CALCULATIONS
-   ============================================================= */
+// Render cart items and totals
 
 /**
  * Re-calculates totals and updates badge counter, drawer list, and subtotal
@@ -277,9 +265,7 @@ function animateNavbarCartBadge() {
 }
 
 
-/* =============================================================
-   4. DRAWER SLIDE ANIMATIONS (Open / Close)
-   ============================================================= */
+// Cart drawer open/close
 
 function openCartDrawer() {
     const drawer = document.getElementById("cart-drawer");
@@ -304,9 +290,7 @@ function closeCartDrawer() {
 }
 
 
-/* =============================================================
-   5. CHECKOUT ROUTING
-   ============================================================= */
+// Checkout navigation
 
 /**
  * Handles the "Proceed to Checkout" action:
@@ -338,9 +322,7 @@ function handleProceedToCheckout(e) {
 }
 
 
-/* =============================================================
-   6. EVENT LISTENERS INITIALIZATION
-   ============================================================= */
+// Initialize cart event listeners
 
 document.addEventListener("DOMContentLoaded", () => {
     // 1. Initial render of cart from user-scoped storage

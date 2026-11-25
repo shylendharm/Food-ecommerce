@@ -1,16 +1,4 @@
-# =============================================================
-# FILE: backend/app/routes/payments.py
-# =============================================================
-
-"""
-Payments & Financial Settlements Router
-Location: backend/app/routes/payments.py
-
-Manages:
-1. Payment intent initialization with ownership checks (SEC-02 Patched).
-2. Asynchronous bank webhook processing with HMAC-SHA256 verification.
-3. Financial ledger queries with strict IDOR defense (SEC-02 Patched).
-"""
+"""Payment processing, verification, and mock gateway integrations."""
 
 import json
 from decimal import Decimal
@@ -40,9 +28,7 @@ router = APIRouter(
 )
 
 
-# =============================================================
-# 1. CREATE PAYMENT INTENT (Called by Frontend Checkout)
-# =============================================================
+# Create payment intent
 
 @router.post("/create-intent", response_model=PaymentIntentResponse, summary="Initialize online payment session (Ownership Protected)")
 def create_payment_intent(
@@ -50,15 +36,8 @@ def create_payment_intent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Starts an online payment session:
-    1. Looks up the order in MySQL to get authoritative total price (prevents price tampering!).
-    2. SEC-02 Patched: Verifies that caller owns this order before initializing payment.
-    3. Generates a gateway transaction ticket.
-    4. Records a PENDING payment in MySQL.
-    5. Returns session metadata so the frontend can open the card modal.
-    """
-    # 1. Fetch the real order from MySQL
+    """Initialize payment intent for an order."""
+    # Fetch order
     order = db.query(Order).filter(Order.id == payload.order_id).first()
     if not order:
         raise HTTPException(
@@ -66,7 +45,7 @@ def create_payment_intent(
             detail=f"Order #{payload.order_id} does not exist."
         )
 
-    # Ownership Guard (IDOR Defense)
+    # Verify order ownership
     if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -115,9 +94,7 @@ def create_payment_intent(
     }
 
 
-# =============================================================
-# 2. PAYMENT GATEWAY WEBHOOK (Called Asynchronously by Bank)
-# =============================================================
+# Payment webhook
 
 @router.post("/webhook", summary="Asynchronous Bank Webhook with HMAC SHA-256 Verification")
 async def payment_gateway_webhook(
@@ -188,9 +165,7 @@ async def payment_gateway_webhook(
     }
 
 
-# =============================================================
-# 3. GET PAYMENT STATUS FOR AN ORDER
-# =============================================================
+# Payment status
 
 @router.get("/order/{order_id}", response_model=PaymentResponse, summary="Get payment details for an order (Ownership Protected)")
 def get_payment_for_order(
@@ -199,13 +174,9 @@ def get_payment_for_order(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Retrieves the financial settlement record for an order.
-    SEC-02 Patched: Enforces strict ownership validation.
-    - Customers can only review payment receipts for their own orders.
-    - Administrators hold audit authority to view all settlements.
-    - Unauthorized access is rejected with 403 Forbidden.
+    Get payment details for an order.
     """
-    # 1. Fetch order to verify ownership before disclosing financial details
+    # Verify order ownership
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(
@@ -213,7 +184,7 @@ def get_payment_for_order(
             detail=f"Order #{order_id} was not found."
         )
 
-    # Ownership Guard (IDOR Defense)
+    # Verify order ownership
     if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

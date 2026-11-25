@@ -1,13 +1,4 @@
-"""
-Automated Test Suite: Redis In-Memory Caching & Cache Invalidation
-Location: backend/tests/test_caching.py
-
-Verifies:
-1. Redis connectivity and ping health check.
-2. Cache-Aside pattern on GET /api/menu (Cache Miss -> MySQL -> Redis -> Cache Hit).
-3. Cache Invalidation on Admin Stock Toggle (Purges Redis keys).
-4. Performance Benchmark (Proving sub-5ms Redis response).
-"""
+"""Integration tests for Redis cache layer and TTL expiration."""
 
 import time
 import pytest
@@ -32,9 +23,7 @@ def get_admin_auth_header() -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-# =============================================================
 # 1. UNIT TEST: REDIS CONNECTIVITY & CRUD
-# =============================================================
 
 def test_redis_connection_and_basic_crud():
     """
@@ -58,9 +47,7 @@ def test_redis_connection_and_basic_crud():
     assert get_cache(test_key) is None
 
 
-# =============================================================
 # 2. INTEGRATION TEST: CACHE-ASIDE PATTERN ON MENU
-# =============================================================
 
 def test_cache_aside_flow_on_menu_endpoint():
     """
@@ -93,9 +80,7 @@ def test_cache_aside_flow_on_menu_endpoint():
     assert res2.json() == items1
 
 
-# =============================================================
 # 3. INTEGRATION TEST: CACHE INVALIDATION ON STOCK TOGGLE
-# =============================================================
 
 def test_admin_stock_toggle_invalidates_cache():
     """
@@ -124,9 +109,7 @@ def test_admin_stock_toggle_invalidates_cache():
     client.patch(f"/api/admin/menu/{first_dish_id}/toggle-stock", headers=admin_headers)
 
 
-# =============================================================
 # 4. PERFORMANCE BENCHMARK: MYSQL DISK VS REDIS RAM
-# =============================================================
 
 def test_redis_performance_benchmark():
     """

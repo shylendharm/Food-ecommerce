@@ -1,15 +1,4 @@
-"""
-Database Models (SQLAlchemy ORM)
-Location: backend/app/models.py
-
-Defines the MySQL table schemas for:
-- Users (Customers & Administrators with Google OAuth2 SSO support)
-- Categories (Pizzas, Burgers, Sides, Desserts)
-- Menu Items (80 gourmet dishes with Veg/Non-Veg flags and stock availability)
-- Orders (Kitchen lifecycle including CANCELLED with delivery addresses)
-- Order Items (Frozen historical snapshots of purchased dishes)
-- Payments (Financial settlements, HMAC cryptographic signatures & audit logs)
-"""
+"""SQLAlchemy database models for FoodExpress."""
 
 import enum
 from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Enum, Text
@@ -18,9 +7,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-# =============================================================
-# ENUMERATIONS (Strict Type Safety for Database Columns)
-# =============================================================
+# Database enums
 
 class UserRole(str, enum.Enum):
     CUSTOMER = "CUSTOMER"
@@ -46,12 +33,8 @@ class PaymentStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
-# -------------------------------------------------------------
-# 1. Users Model (Customers & Restaurant Staff)
-# -------------------------------------------------------------
-# =============================================================
-# FILE: backend/app/models.py (Lines 52–74)
-# =============================================================
+# Users
+# Table models
 
 class User(Base):
     __tablename__ = "users"
@@ -60,25 +43,20 @@ class User(Base):
     name = Column(String(100), nullable=False)
     email = Column(String(191), unique=True, index=True, nullable=False)
     
-    # Nullable for Google SSO accounts since Google manages credentials
     password_hash = Column(String(255), nullable=True)
     phone = Column(String(20), nullable=True)
     default_address = Column(Text, nullable=True)
     role = Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
     
-    # Google OAuth2 Integration Fields
     auth_provider = Column(Enum(AuthProvider), default=AuthProvider.LOCAL, nullable=False)
     google_id = Column(String(191), unique=True, index=True, nullable=True)
     picture_url = Column(String(500), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     orders = relationship("Order", back_populates="customer")
 
-# -------------------------------------------------------------
-# 2. Categories Model (Pizzas, Burgers, Sides, Desserts)
-# -------------------------------------------------------------
+# Categories
 class Category(Base):
     __tablename__ = "categories"
 
@@ -86,13 +64,10 @@ class Category(Base):
     name = Column(String(100), unique=True, nullable=False)
     slug = Column(String(100), unique=True, nullable=False)
 
-    # Relationships (No created_at - matches MySQL table)
     menu_items = relationship("MenuItem", back_populates="category", cascade="all, delete-orphan")
 
 
-# -------------------------------------------------------------
-# 3. Menu Items Model (Dishes, Pricing, Stock Status)
-# -------------------------------------------------------------
+# Menu items
 class MenuItem(Base):
     __tablename__ = "menu_items"
 
@@ -105,14 +80,11 @@ class MenuItem(Base):
     is_veg = Column(Boolean, default=True, nullable=False)
     is_available = Column(Boolean, default=True, nullable=False)
 
-    # Relationships (No created_at - matches MySQL table)
     category = relationship("Category", back_populates="menu_items")
     order_items = relationship("OrderItem", back_populates="menu_item")
 
 
-# -------------------------------------------------------------
-# 4. Orders Model (Kitchen Lifecycle & Delivery Tracking)
-# -------------------------------------------------------------
+# Orders
 class Order(Base):
     __tablename__ = "orders"
 
@@ -130,15 +102,12 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     customer = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
 
 
-# -------------------------------------------------------------
-# 5. Order Items Model (Frozen Snapshots of Purchased Dishes)
-# -------------------------------------------------------------
+# Order items
 class OrderItem(Base):
     __tablename__ = "order_items"
 
@@ -151,14 +120,11 @@ class OrderItem(Base):
     price_per_unit = Column(Numeric(10, 2), nullable=False)
     quantity = Column(Integer, nullable=False)
 
-    # Relationships
     order = relationship("Order", back_populates="items")
     menu_item = relationship("MenuItem", back_populates="order_items")
 
 
-# -------------------------------------------------------------
-# 6. Payments Model (Financial Settlements & HMAC Signatures)
-# -------------------------------------------------------------
+# Payments
 class Payment(Base):
     __tablename__ = "payments"
 
@@ -172,5 +138,4 @@ class Payment(Base):
     signature = Column(String(255), nullable=True)  # Cryptographic HMAC SHA-256 audit signature
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     order = relationship("Order", back_populates="payments")

@@ -1,10 +1,4 @@
-"""
-WebSocket Connection Manager
-Location: backend/app/websocket_manager.py
-
-Manages active real-time WebSocket client connections grouped by order_id.
-Handles handshakes, disconnections, memory cleanup, and broadcasting live events.
-"""
+"""WebSocket connection manager for real-time order tracking."""
 
 from typing import Dict, List
 from fastapi import WebSocket

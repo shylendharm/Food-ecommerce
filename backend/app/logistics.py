@@ -1,12 +1,4 @@
-"""
-Logistics & Spatial Calculation Engine
-Location: backend/app/logistics.py
-
-Implements:
-1. Haversine spherical trigonometric formula for real-world GPS distance calculation.
-2. Dynamic Estimated Time of Arrival (ETA) based on order status and transit speed.
-3. Coordinate geocoding simulation for customer delivery addresses.
-"""
+"""Spatial distance calculations and delivery ETA estimation."""
 
 import math
 import hashlib
@@ -30,9 +22,7 @@ BASE_COOKING_TIME_MINS = 15.0
 TRAFFIC_BUFFER_MINS = 4.0
 
 
-# =============================================================
-# 1. HAVERSINE SPHERICAL DISTANCE CALCULATION
-# =============================================================
+# Haversine distance formula
 
 def calculate_haversine_distance(
     lat1: float,
@@ -60,9 +50,7 @@ def calculate_haversine_distance(
     return round(distance_km, 2)
 
 
-# =============================================================
-# 2. ADDRESS TO GPS COORDINATE SIMULATOR
-# =============================================================
+# Coordinate simulation
 
 def get_coordinates_for_address(address: str) -> Tuple[float, float]:
     """
@@ -83,9 +71,7 @@ def get_coordinates_for_address(address: str) -> Tuple[float, float]:
     return customer_lat, customer_lon
 
 
-# =============================================================
-# 3. DYNAMIC ESTIMATED TIME OF ARRIVAL (ETA)
-# =============================================================
+# ETA calculation
 
 def calculate_delivery_eta(
     order_status: str,

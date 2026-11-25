@@ -1,12 +1,7 @@
-/* =============================================================
-   FILE: frontend/js/profile-setup.js
-   ONBOARDING & PROFILE EDIT CONTROLLER
-   Manages first-time profile onboarding, profile editing, input
-   validation, and contextual post-save navigation routing.
-   ============================================================= */
+// Profile setup and customer onboarding
 
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Enforce authentication: Guest visitors cannot access profile setup
+    // Route guard: require authenticated user
     if (!isAuthenticated()) {
         window.location.href = "login.html";
         return;

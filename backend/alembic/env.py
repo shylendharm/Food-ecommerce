@@ -1,10 +1,4 @@
-"""
-Alembic Runtime Environment Configuration
-Location: backend/alembic/env.py
-
-Binds Alembic to our FastAPI application's SQLAlchemy metadata
-and dynamically injects the MySQL connection URL from .env.
-"""
+"""Alembic runtime environment configuration."""
 
 import os
 import sys
@@ -15,39 +9,28 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# -------------------------------------------------------------
-# 1. Ensure backend/ is in Python's search path
-# -------------------------------------------------------------
+# Add backend to path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-# -------------------------------------------------------------
-# 2. Import application database Base metadata and models
-# -------------------------------------------------------------
+# Models and metadata
 from app.database import Base, DATABASE_URL
 import app.models  # Guarantees all 6 tables are registered in Base.metadata!
 
-# Alembic Config object, providing access to values in alembic.ini
 config = context.config
 
-# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# -------------------------------------------------------------
-# 3. Dynamic Configuration Injection (No hardcoded credentials!)
-# -------------------------------------------------------------
+# Configure database URL
 # Injects our live DATABASE_URL from .env directly into Alembic
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
-# Sets the target metadata that Alembic will inspect for 'autogenerate'
 target_metadata = Base.metadata
 
 
-# -------------------------------------------------------------
-# 4. Migration Execution Modes
-# -------------------------------------------------------------
+# Migration runners
 
 def run_migrations_offline() -> None:
     """

@@ -1,17 +1,4 @@
-# =============================================================
-# FILE: backend/app/routes/orders.py
-# =============================================================
-
-"""
-Orders & Checkout Router
-Location: backend/app/routes/orders.py
-
-Manages:
-1. Atomic order placement with database-validated pricing.
-2. Customer order history retrieval (/my-orders).
-3. Secure, ownership-verified order tracking queries (/{order_id}) [SEC-01 Patched].
-4. Self-serve customer order cancellation (PATCH /{order_id}/cancel).
-"""
+"""Order creation, status updates, and order query endpoints."""
 
 from decimal import Decimal
 from typing import List, Optional
@@ -126,14 +113,7 @@ def get_order_by_id(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Retrieves complete details of an order (status, items snapshot, total, delivery info).
-    SEC-01 Patched: Enforces strict ownership validation.
-    - Customer can only view orders linked to their own account.
-    - Administrators hold override authority to view any customer ticket.
-    - Unauthenticated callers receive 401 Unauthorized.
-    - Unauthorized customers receive 403 Forbidden.
-    """
+    """Get order details by ID. Only owner or admin can view."""
     order = db.query(Order).filter(Order.id == order_id).first()
 
     if not order:
@@ -142,7 +122,7 @@ def get_order_by_id(
             detail=f"Order #{order_id} was not found."
         )
 
-    # Ownership Guard (IDOR Defense)
+    # Verify order ownership
     if order.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -158,14 +138,7 @@ async def cancel_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Customer Self-Serve Order Cancellation:
-    1. Ownership Guard: Customer can only cancel their own order (admins hold override).
-    2. State Machine Guard: Permitted strictly while status is PENDING.
-       (Rejects with 400 if PREPARING, OUT_FOR_DELIVERY, or DELIVERED).
-    3. Mutates status to CANCELLED in MySQL.
-    4. Broadcasts real-time WebSocket event to tracking and KDS consoles.
-    """
+    """Cancel an order before preparation starts."""
     order = db.query(Order).filter(Order.id == order_id).first()
 
     if not order:

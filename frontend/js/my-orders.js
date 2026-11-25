@@ -1,9 +1,4 @@
-/* =============================================================
-   CUSTOMER PAST ORDERS CONTROLLER (frontend/js/my-orders.js)
-   Fetches and renders order history for the authenticated customer,
-   with contextual status pills, live indicators, 1-click reorder,
-   and design-system compliant customer cancellation dialogs.
-   ============================================================= */
+// Order history list and receipts
 
 // In-memory cache of orders for instant 1-click reordering
 let currentCustomerOrders = [];
@@ -13,9 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-/* =============================================================
-   1. FETCH & RENDER CUSTOMER ORDERS
-   ============================================================= */
+// Fetch order history
 
 async function loadCustomerOrders() {
     const container = document.getElementById("orders-list-container");
@@ -73,9 +66,7 @@ async function loadCustomerOrders() {
 }
 
 
-/* =============================================================
-   2. ORDER CARD TEMPLATE BUILDER
-   ============================================================= */
+// Render order card
 
 function renderOrderCard(order) {
     const orderDate = new Date(order.created_at).toLocaleString("en-US", {
@@ -186,9 +177,7 @@ function renderOrderActionButtons(order) {
 }
 
 
-/* =============================================================
-   3. 1-CLICK INSTANT REORDER HANDLER
-   ============================================================= */
+// Reorder items
 
 window.handleReorder = async function (orderId) {
     const order = currentCustomerOrders.find(o => o.id === orderId);
@@ -242,9 +231,7 @@ window.handleReorder = async function (orderId) {
 };
 
 
-/* =============================================================
-   4. CUSTOMER ORDER CANCELLATION HANDLER
-   ============================================================= */
+// Order cancellation
 
 window.handleCancelFromHistory = async function (orderId) {
     // Design System Confirmation Modal

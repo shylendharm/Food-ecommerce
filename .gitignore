@@ -15,3 +15,6 @@ __pycache__/
 # 3. Operating System clutter
 .DS_Store
 Thumbs.db
+
+# 4. Temporary development scratchpad
+scratch/

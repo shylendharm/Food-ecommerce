@@ -1,14 +1,4 @@
-# =============================================================
-# FILE: backend/app/schemas.py
-# =============================================================
-
-"""
-Pydantic Request & Response Validation Schemas
-Location: backend/app/schemas.py
-
-Validates API inputs and serializes database outputs across
-Categories, Menu Items, Orders, Users, Payments, and Google OAuth2 SSO.
-"""
+"""Pydantic validation schemas for API requests and responses."""
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
@@ -17,9 +7,7 @@ from decimal import Decimal
 from app.models import UserRole, OrderStatus, PaymentStatus, AuthProvider
 
 
-# =============================================================
-# 1. CATEGORY SCHEMAS
-# =============================================================
+# Category schemas
 class CategoryBase(BaseModel):
     name: str = Field(..., example="Starters")
     slug: str = Field(..., example="starters")
@@ -31,9 +19,7 @@ class CategoryResponse(CategoryBase):
         from_attributes = True
 
 
-# =============================================================
-# 2. MENU ITEM SCHEMAS
-# =============================================================
+# Menu item schemas
 class MenuItemBase(BaseModel):
     name: str = Field(..., example="Margherita Pizza")
     description: Optional[str] = Field(None, example="Fresh mozzarella, basil, and tomato sauce")
@@ -53,9 +39,7 @@ class MenuItemResponse(MenuItemBase):
         from_attributes = True
 
 
-# =============================================================
-# 3. ORDER ITEM SCHEMAS (Items inside an order)
-# =============================================================
+# Order item schemas
 class OrderItemCreate(BaseModel):
     menu_item_id: int
     quantity: int = Field(..., gt=0, example=2)
@@ -71,9 +55,7 @@ class OrderItemResponse(BaseModel):
         from_attributes = True
 
 
-# =============================================================
-# 4. ORDER SCHEMAS
-# =============================================================
+# Order schemas
 class OrderCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, example="John Doe")
     customer_email: EmailStr = Field(..., example="john@example.com")
@@ -102,9 +84,7 @@ class OrderResponse(BaseModel):
         from_attributes = True
 
 
-# =============================================================
-# 5. USER & AUTH SCHEMAS (Including Profile Onboarding)
-# =============================================================
+# User and auth schemas
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2)
     email: EmailStr
@@ -141,9 +121,7 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-# =============================================================
-# 6. PAYMENT SCHEMAS
-# =============================================================
+# Payment schemas
 class PaymentIntentCreate(BaseModel):
     order_id: int = Field(..., example=1)
 

@@ -1,17 +1,4 @@
-"""
-Automated Test Suite: Real-Time Logistics & WebSocket Event Streaming (Security Hardened)
-Location: backend/tests/test_logistics.py
-
-Verifies:
-1. Haversine distance formula accuracy and spherical symmetry.
-2. Address coordinate geocoding determinism and bounds.
-3. Status-based dynamic ETA calculations across all lifecycle stages.
-4. REST logistics endpoint (/api/orders/{id}/logistics) auth guard (SEC-07: 401 unauthenticated, 200 authenticated).
-5. Bidirectional WebSocket handshake with ?token= validation (SEC-07: 1008 rejection without token).
-6. Real-time broadcast delivery to connected authenticated WebSocket clients.
-7. Rejection of WebSocket connections for non-existent orders.
-8. Connection pool lifecycle and memory leak prevention (room cleanup).
-"""
+"""Unit tests for spatial calculations and delivery ETA."""
 
 import asyncio
 import uuid
@@ -30,9 +17,7 @@ from app.websocket_manager import ws_manager
 client = TestClient(app)
 
 
-# =============================================================
 # HELPER FIXTURES: AUTHENTICATED TEST CUSTOMER & ORDERS
-# =============================================================
 
 def create_test_customer_auth() -> tuple[dict, str, dict]:
     """
@@ -86,9 +71,7 @@ def create_test_order() -> tuple[dict, str, dict]:
     return res.json(), token, headers
 
 
-# =============================================================
 # 1. HAVERSINE MATHEMATICAL ACCURACY TESTS
-# =============================================================
 
 def test_haversine_formula_math():
     """
@@ -138,9 +121,7 @@ def test_address_geocoding_determinism_and_bounds():
     assert -180.0 <= lon1 <= 180.0
 
 
-# =============================================================
 # 2. DYNAMIC ETA LIFECYCLE TESTS
-# =============================================================
 
 def test_eta_calculation_across_lifecycle_stages():
     """
@@ -167,9 +148,7 @@ def test_eta_calculation_across_lifecycle_stages():
     assert delivered_logistics["estimated_minutes"] == 0
 
 
-# =============================================================
 # 3. REST LOGISTICS ENDPOINT TESTS (SEC-07 DEFENSE)
-# =============================================================
 
 def test_rest_logistics_endpoint_unauthenticated_fails_401():
     """
@@ -207,9 +186,7 @@ def test_rest_logistics_endpoint_authenticated_success():
     assert res_404.status_code == 404
 
 
-# =============================================================
 # 4. WEBSOCKET REAL-TIME STREAMING & AUTH TESTS (SEC-07)
-# =============================================================
 
 def test_websocket_unauthenticated_connection_rejected_1008():
     """

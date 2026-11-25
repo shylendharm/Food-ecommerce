@@ -19,10 +19,8 @@
 
 <body class="admin-portal-body">
 
-    <!-- ========================================================= -->
-    <!-- 1. OPERATIONS TOPBAR                                      -->
-    <!-- ========================================================= -->
-    <header class="admin-topbar">
+        <!-- OPERATIONS TOPBAR -->
+        <header class="admin-topbar">
         <div class="admin-topbar-container">
             <div class="admin-brand-cluster">
                 <div class="admin-brand-link">
@@ -38,10 +36,8 @@
         </div>
     </header>
 
-    <!-- ========================================================= -->
-    <!-- 2. ACCESS DENIED GUARD (Shown if user is NOT ADMIN)       -->
-    <!-- ========================================================= -->
-    <div id="admin-access-denied" class="admin-access-denied hidden">
+        <!-- ACCESS DENIED GUARD (Shown if user is NOT ADMIN) -->
+        <div id="admin-access-denied" class="admin-access-denied hidden">
         <div class="denied-card">
 
             <h2>Access Denied (403 Forbidden)</h2>
@@ -55,10 +51,8 @@
         </div>
     </div>
 
-    <!-- ========================================================= -->
-    <!-- 3. MAIN DASHBOARD CONTENT (Shown strictly for ADMIN)      -->
-    <!-- ========================================================= -->
-    <main id="admin-dashboard-content" class="admin-main-container hidden">
+        <!-- MAIN DASHBOARD CONTENT (Shown strictly for ADMIN) -->
+        <main id="admin-dashboard-content" class="admin-main-container hidden">
 
         <!-- Executive KPI Metrics Ribbon -->
         <section class="admin-metrics-ribbon">
@@ -119,10 +113,8 @@
             </div>
         </div>
 
-        <!-- ===================================================== -->
-        <!-- VIEW 1: KITCHEN DISPLAY SYSTEM (KDS TICKET BOARD)     -->
-        <!-- ===================================================== -->
-        <section id="admin-orders-view" class="admin-view-section">
+                <!-- VIEW 1: KITCHEN DISPLAY SYSTEM (KDS TICKET BOARD)     -->
+                <section id="admin-orders-view" class="admin-view-section">
             <!-- Filter Bar & Search -->
             <div class="kds-filter-toolbar">
                 <div class="kds-status-filters">
@@ -147,10 +139,8 @@
             </div>
         </section>
 
-        <!-- ===================================================== -->
-        <!-- VIEW 2: 80-DISH MENU & STOCK INVENTORY CENTER         -->
-        <!-- ===================================================== -->
-        <section id="admin-inventory-view" class="admin-view-section hidden">
+                <!-- VIEW 2: 80-DISH MENU & STOCK INVENTORY CENTER         -->
+                <section id="admin-inventory-view" class="admin-view-section hidden">
             <div class="inventory-card-panel">
                 <div class="inventory-panel-header">
                     <div>
@@ -177,10 +167,8 @@
 
     </main>
 
-    <!-- ========================================================= -->
-    <!-- 4. JAVASCRIPT CONTROLLERS                                 -->
-    <!-- ========================================================= -->
-    <script src="js/api.js"></script>
+        <!-- JAVASCRIPT CONTROLLERS -->
+        <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/admin.js"></script>
 </body>

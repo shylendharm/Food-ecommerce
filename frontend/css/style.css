@@ -1,11 +1,7 @@
-/* =============================================================
-   FOODEXPRESS - MODERN MINIMALIST DESIGN SYSTEM
-   Theme: Modern Minimalist Light (UberEats / DoorDash Aesthetic)
-   ============================================================= */
+/* FOODEXPRESS - MODERN MINIMALIST DESIGN SYSTEM
+   Theme: Modern Minimalist Light (UberEats / DoorDash Aesthetic) */
 
-/* -------------------------------------------------------------
-   1. DESIGN TOKENS & VARIABLES
-   ------------------------------------------------------------- */
+/* DESIGN TOKENS & VARIABLES */
 :root {
     /* Brand Primary Accent */
     --primary: #E11D48;
@@ -53,9 +49,7 @@
     --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* -------------------------------------------------------------
-   2. GLOBAL RESET & BASE STYLING
-   ------------------------------------------------------------- */
+/* GLOBAL RESET & BASE STYLING */
 * {
     margin: 0;
     padding: 0;
@@ -71,9 +65,7 @@ body {
     overflow-x: hidden;
 }
 
-/* -------------------------------------------------------------
-   3. STICKY GLASSMORPHIC TOPBAR
-   ------------------------------------------------------------- */
+/* STICKY GLASSMORPHIC TOPBAR */
 .navbar {
     position: sticky;
     top: 0;
@@ -311,9 +303,7 @@ body {
     background: #FEF2F2;
 }
 
-/* -------------------------------------------------------------
-   4. MODERN MINIMALIST HERO
-   ------------------------------------------------------------- */
+/* MODERN MINIMALIST HERO */
 .hero-section {
     background: #FFFFFF;
     border-bottom: 1px solid var(--border-light);
@@ -357,9 +347,7 @@ body {
     line-height: 1.5;
 }
 
-/* -------------------------------------------------------------
-   5. STICKY CONTROLS & FILTER TOOLBAR
-   ------------------------------------------------------------- */
+/* STICKY CONTROLS & FILTER TOOLBAR */
 .controls-section {
     position: sticky;
     top: 61px;
@@ -527,9 +515,7 @@ input:checked+.slider:before {
     transform: translateX(16px);
 }
 
-/* -------------------------------------------------------------
-   6. MAIN FOOD CARD GRID
-   ------------------------------------------------------------- */
+/* MAIN FOOD CARD GRID */
 .main-content {
     max-width: 1280px;
     margin: 32px auto 80px;
@@ -768,9 +754,7 @@ input:checked+.slider:before {
     text-align: center;
 }
 
-/* -------------------------------------------------------------
-   7. SLIDING CART DRAWER (DOORDASH STYLE)
-   ------------------------------------------------------------- */
+/* SLIDING CART DRAWER (DOORDASH STYLE) */
 .cart-backdrop {
     position: fixed;
     inset: 0;
@@ -962,9 +946,7 @@ input:checked+.slider:before {
     background: var(--primary-hover);
 }
 
-/* -------------------------------------------------------------
-   8. AUTHENTICATION POPUP MODAL
-   ------------------------------------------------------------- */
+/* AUTHENTICATION POPUP MODAL */
 .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -1073,13 +1055,9 @@ input:checked+.slider:before {
     display: block;
 }
 
-/* =============================================================
-   FILE: frontend/css/style.css (Line 1066 to End)
-   ============================================================= */
+/* FoodExpress design system and global styles */
 
-/* -------------------------------------------------------------
-   9. CHECKOUT PAGE STYLING (MODERN MINIMALIST LIGHT)
-   ------------------------------------------------------------- */
+/* CHECKOUT PAGE STYLING (MODERN MINIMALIST LIGHT) */
 .back-link {
     color: var(--text-muted);
     text-decoration: none;
@@ -1297,9 +1275,7 @@ input:checked+.slider:before {
     margin-top: 18px;
 }
 
-/* -------------------------------------------------------------
-   10. ORDER TRACKING & STEPPER STYLING (MODERN MINIMALIST LIGHT)
-   ------------------------------------------------------------- */
+/* ORDER TRACKING & STEPPER STYLING (MODERN MINIMALIST LIGHT) */
 .tracking-main {
     max-width: 1040px;
     margin: 36px auto 64px;
@@ -1523,9 +1499,7 @@ input:checked+.slider:before {
     padding-top: 14px;
 }
 
-/* -------------------------------------------------------------
-   11. REAL-TIME TELEMETRY & LEAFLET MAP STYLING
-   ------------------------------------------------------------- */
+/* REAL-TIME TELEMETRY & LEAFLET MAP STYLING */
 .map-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1669,9 +1643,7 @@ input:checked+.slider:before {
     transition: all 0.5s ease-in-out;
 }
 
-/* -------------------------------------------------------------
-   12. CUSTOMER STATUS BADGES & ORDER HISTORY
-   ------------------------------------------------------------- */
+/* CUSTOMER STATUS BADGES & ORDER HISTORY */
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -1727,13 +1699,9 @@ input:checked+.slider:before {
     font-size: 0.95rem;
 }
 
-/* =============================================================
-   FILE: frontend/css/style.css (Line 1730 to End)
-   ============================================================= */
+/* FoodExpress design system and global styles */
 
-/* =============================================================
-   13. RESTAURANT OPERATIONS COMMAND CENTER & KDS (MODERN MINIMALIST LIGHT)
-   ============================================================= */
+/* RESTAURANT OPERATIONS COMMAND CENTER & KDS (MODERN MINIMALIST LIGHT) */
 
 /* Clean Modern Minimalist Operations Canvas */
 body.admin-portal-body {
@@ -2451,9 +2419,7 @@ body.admin-portal-body {
     cursor: not-allowed;
 }
 
-/* =============================================================
-   INVENTORY & 80-DISH STOCK CENTER (VIEW 2)
-   ============================================================= */
+/* INVENTORY & 80-DISH STOCK CENTER (VIEW 2) */
 
 .inventory-card-panel {
     background: var(--surface);
@@ -2543,9 +2509,7 @@ body.admin-portal-body {
     border-color: var(--primary);
 }
 
-/* =============================================================
-   FILE: frontend/css/style.css (Lines 2546–2676)
-   ============================================================= */
+/* FoodExpress design system and global styles */
 
 /* Clean Operations Table (80-Dish Inventory) */
 .inventory-table-wrap {
@@ -2809,11 +2773,9 @@ body.admin-portal-body {
     }
 }
 
-/* =============================================================
-   STANDALONE AUTHENTICATION & ONBOARDING PORTAL STYLES
+/* STANDALONE AUTHENTICATION & ONBOARDING PORTAL STYLES
    Theme: Modern Minimalist Light (Matches Storefront & Checkout)
-   Used by frontend/login.html and frontend/profile-setup.html
-   ============================================================= */
+   Used by frontend/login.html and frontend/profile-setup.html */
 
 body.auth-page-body {
     min-height: 100vh;
@@ -3057,10 +3019,8 @@ body.auth-page-body {
     margin: 0;
 }
 
-/* =============================================================
-   PAYMENT GATEWAY SANDBOX MODAL (Modern Minimalist Light)
-   Matches Storefront & Checkout Design System
-   ============================================================= */
+/* PAYMENT GATEWAY SANDBOX MODAL (Modern Minimalist Light)
+   Matches Storefront & Checkout Design System */
 
 .payment-modal-header {
     padding: 20px 24px;
@@ -3211,10 +3171,8 @@ body.auth-page-body {
     transform: none;
 }
 
-/* =============================================================
-   APP UNIFIED MODAL DIALOG & POPUP THEME ENGINE
-   Modern Minimalist Light Theme matching FoodExpress Design Tokens
-   ============================================================= */
+/* APP UNIFIED MODAL DIALOG & POPUP THEME ENGINE
+   Modern Minimalist Light Theme matching FoodExpress Design Tokens */
 
 /* 1. Backdrop Overlays (Payment Sandbox & App Alert/Confirm Dialogs) */
 .modal-backdrop,
@@ -3394,10 +3352,8 @@ body.auth-page-body {
     font-weight: 500 !important;
 }
 
-/* =============================================================
-   SITE-WIDE SMOOTH TRANSITIONS & INGRESS ANIMATION ENGINE
-   Eliminates sudden pop-ins across views, cards, and interactions
-   ============================================================= */
+/* SITE-WIDE SMOOTH TRANSITIONS & INGRESS ANIMATION ENGINE
+   Eliminates sudden pop-ins across views, cards, and interactions */
 
 @keyframes pageEntrance {
     from {

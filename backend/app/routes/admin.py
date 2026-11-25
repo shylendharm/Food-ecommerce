@@ -1,12 +1,4 @@
-"""
-Admin - Kitchen Operations & Inventory Management Router
-Location: backend/app/routes/admin.py
-
-Provides:
-1. Real-time KPI metrics calculation (/metrics).
-2. Full kitchen order management with WebSocket event broadcasts (/orders).
-3. Complete 80-dish inventory management with Redis cache invalidation (/menu).
-"""
+"""Admin dashboard, inventory control, and order queue endpoints."""
 
 from decimal import Decimal
 from typing import List, Optional
@@ -37,9 +29,7 @@ router = APIRouter(
 )
 
 
-# =============================================================
-# 1. REAL-TIME EXECUTIVE METRICS (KPIs)
-# =============================================================
+# Dashboard metrics
 
 @router.get("/metrics", summary="Get executive real-time restaurant metrics (Admin only)")
 def get_admin_metrics(
@@ -81,9 +71,7 @@ def get_admin_metrics(
     }
 
 
-# =============================================================
-# 2. KITCHEN ORDER MANAGEMENT (WITH LIVE WEBSOCKET BROADCAST)
-# =============================================================
+# Kitchen order queue and status transitions
 
 @router.get("/orders", response_model=List[OrderResponse], summary="List all restaurant orders (Admin only)")
 def list_all_orders(
@@ -144,9 +132,7 @@ async def update_order_status(
     return order
 
 
-# =============================================================
-# 3. COMPLETE 80-DISH INVENTORY MANAGEMENT (ADMIN FULL ACCESS)
-# =============================================================
+# Menu inventory management
 
 @router.get("/menu", response_model=List[MenuItemResponse], summary="List all dishes including out-of-stock (Admin only)")
 def list_admin_menu(

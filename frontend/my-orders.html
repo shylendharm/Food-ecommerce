@@ -19,10 +19,8 @@
 
 <body class="orders-history-page">
 
-    <!-- ========================================================= -->
-    <!-- 1. NAVIGATION BAR (Brand + Navbar Dropdown + Back to Menu) -->
-    <!-- ========================================================= -->
-    <header class="navbar">
+        <!-- NAVIGATION BAR (Brand + Navbar Dropdown + Back to Menu) -->
+        <header class="navbar">
         <div class="nav-container">
             <a href="index.html" class="brand">
                 <img src="assets/logo.png" alt="FoodExpress Logo" class="brand-logo">
@@ -37,10 +35,8 @@
         </div>
     </header>
 
-    <!-- ========================================================= -->
-    <!-- 2. MAIN ORDERS HISTORY CONTAINER                          -->
-    <!-- ========================================================= -->
-    <main class="main-content" style="max-width: 900px; margin: 30px auto; padding: 0 20px;">
+        <!-- MAIN ORDERS HISTORY CONTAINER -->
+        <main class="main-content" style="max-width: 900px; margin: 30px auto; padding: 0 20px;">
 
         <div class="section-header" style="margin-bottom: 24px;">
             <div>
@@ -61,14 +57,12 @@
 
     </main>
 
-    <!-- ========================================================= -->
-    <!-- 3. JAVASCRIPT LOGIC (In order of dependency!)              -->
-    <!-- ========================================================= -->
-    <!-- 1. api.js handles requests and attaches JWT Bearer token -->
+        <!-- JAVASCRIPT LOGIC (In order of dependency!) -->
+        <!-- api.js handles requests and attaches JWT Bearer token -->
     <script src="js/api.js"></script>
-    <!-- 2. auth.js controls the navbar dropdown -->
+    <!-- auth.js controls the navbar dropdown -->
     <script src="js/auth.js"></script>
-    <!-- 3. my-orders.js fetches and renders orders -->
+    <!-- my-orders.js fetches and renders orders -->
     <script src="js/my-orders.js"></script>
 </body>
 

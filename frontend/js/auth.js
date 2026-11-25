@@ -1,10 +1,4 @@
-/* =============================================================
-   FILE: frontend/js/auth.js
-   AUTHENTICATION & ROUTE GUARD CONTROLLER
-   Enforces mandatory global authentication guards, onboarding
-   lifecycle routing, typographic navbar, live Google OAuth2 SSO
-   with dynamic responsive button width, and sign-out confirmation.
-   ============================================================= */
+// Authentication controller, Google SSO, and navigation bar
 
 // Official Google Cloud OAuth 2.0 Web Client ID
 const GOOGLE_CLIENT_ID = "689639687351-pfvpvkc0gen8slip0jj6ff6b4ibpbeu6.apps.googleusercontent.com";
@@ -22,9 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-/* =============================================================
-   1. GLOBAL ROUTE GUARD & ROLE ROUTER
-   ============================================================= */
+// Route guards
 
 function enforceRouteGuard() {
     const rawPath = window.location.pathname.toLowerCase();
@@ -78,10 +70,7 @@ function enforceRouteGuard() {
 }
 
 
-/* =============================================================
-   2. NAVBAR STATE CONTROLLER (Typographic Name Pill & Floating Card)
-   Matches style.css .user-menu-container & .user-dropdown
-   ============================================================= */
+// Navbar user menu
 
 function initAuthNavbar() {
     const authNavContainer = document.getElementById("auth-nav-container");
@@ -203,9 +192,7 @@ async function handleUserSignOut() {
 }
 
 
-/* =============================================================
-   3. LOGIN PAGE CONTROLLER (login.html)
-   ============================================================= */
+// Login and registration form
 
 function initLoginPage() {
     const isLoginPage = window.location.pathname.toLowerCase().endsWith("login.html");
@@ -304,9 +291,7 @@ function initLoginPage() {
 }
 
 
-/* =============================================================
-   4. LIVE GOOGLE OAUTH2 IDENTITY SERVICES WITH RESPONSIVE SIZING
-   ============================================================= */
+// Google OAuth2 integration
 
 function initGoogleIdentityServices() {
     if (!window.GOOGLE_CLIENT_ID) return;
@@ -425,9 +410,7 @@ window.handleGoogleCredentialResponse = async function (response) {
 };
 
 
-/* =============================================================
-   5. UI ERROR HELPER & HTML ESCAPING
-   ============================================================= */
+// Helpers
 
 function showPortalError(message) {
     const errorBanner = document.getElementById("portal-error-banner");

@@ -1,19 +1,4 @@
-# =============================================================
-# FILE: backend/app/routes/auth.py
-# =============================================================
-
-"""
-Authentication & User Management Router
-Location: backend/app/routes/auth.py
-
-Environment-Gated Security Architecture:
-1. In Production (ENVIRONMENT=production): Sandbox mock tokens are strictly blocked (401).
-2. In Development & Testing: Sandbox tokens allow local verification of both Customer & Admin.
-3. Master Administrator: shylendharm369@gmail.com holds exclusive admin authority.
-4. Profile Lifecycle: Provides onboarding update endpoint (PUT /api/auth/profile).
-5. Rate Limiting (SEC-06): Throttles brute-force attempts on login and registration,
-   with automated bypass for Pytest test runners.
-"""
+"""Authentication, user profiles, Google OAuth2, and local credentials."""
 
 import os
 import time
@@ -50,9 +35,7 @@ ADMIN_EMAILS = {
 }
 
 
-# =============================================================
-# RATE LIMITING & ABUSE PREVENTION (SEC-06 REMEDIATION)
-# =============================================================
+# Rate limiting helpers
 
 RATE_LIMIT_LOGIN_MAX = int(os.getenv("AUTH_RATE_LIMIT_LOGIN_MAX", 15))
 RATE_LIMIT_REGISTER_MAX = int(os.getenv("AUTH_RATE_LIMIT_REGISTER_MAX", 10))
@@ -68,14 +51,8 @@ def check_rate_limit(
     max_requests: int = 15,
     window_seconds: int = 60
 ):
-    """
-    Defense against SEC-06: Brute-Force & Credential Stuffing Throttling.
-    Tracks and limits request frequency by client IP.
-    Uses high-performance Redis atomic counters when online;
-    falls back gracefully to an in-memory sliding window if Redis is unreachable.
-    Bypasses throttling automatically during Pytest test executions.
-    """
-    # Automatically bypass rate limiter during automated Pytest runs so test fixtures are never throttled
+    """Rate limit requests by client IP with Redis or in-memory fallback."""
+    # Bypass rate limit during tests
     if (
         "PYTEST_CURRENT_TEST" in os.environ
         or os.getenv("DISABLE_RATE_LIMITING", "false").lower() in ("true", "1")
@@ -83,12 +60,12 @@ def check_rate_limit(
     ):
         return
 
-    # Determine client IP address (accounting for reverse proxies / load balancers)
+    # Extract client IP
     forwarded = request.headers.get("X-Forwarded-For")
     client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "127.0.0.1")
     cache_key = f"rate_limit:{key_prefix}:{client_ip}"
 
-    # 1. High-Performance Distributed Rate Limiting via Redis
+    # Redis rate limit check
     if redis_client:
         try:
             current_attempts = redis_client.incr(cache_key)
@@ -134,9 +111,7 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 
-# =============================================================
-# 1. GOOGLE TOKEN VERIFIER (ENVIRONMENT-GATED)
-# =============================================================
+# Google token verification
 
 async def verify_google_token(credential: str) -> dict:
     """
@@ -181,9 +156,7 @@ async def verify_google_token(credential: str) -> dict:
             )
 
 
-# =============================================================
-# 2. GOOGLE OAUTH2 SINGLE SIGN-ON ENDPOINT
-# =============================================================
+# Google OAuth2 login
 
 @router.post("/google", response_model=LoginResponse, summary="Sign in or register using Google OAuth2")
 async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
@@ -252,9 +225,7 @@ async def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db))
     }
 
 
-# =============================================================
-# 3. PROFILE MANAGEMENT ENDPOINTS
-# =============================================================
+# Profile management
 
 @router.get("/me", response_model=UserResponse, summary="Get current logged-in user profile")
 def get_my_profile(current_user: User = Depends(get_current_user)):
@@ -280,9 +251,7 @@ def update_profile(
     return current_user
 
 
-# =============================================================
-# 4. BACKWARD-COMPATIBLE LOCAL AUTH (FOR AUTOMATED TESTS)
-# =============================================================
+# Local auth endpoints
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Register customer (Automated Tests)")
 def register_customer(

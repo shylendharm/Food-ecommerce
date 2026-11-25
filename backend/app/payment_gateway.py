@@ -1,11 +1,4 @@
-"""
-Payment Gateway Sandbox & HMAC Signature Verification Engine
-Location: backend/app/payment_gateway.py
-
-Simulates enterprise payment provider integration (e.g., Razorpay/Stripe Test Mode).
-Calculates and verifies HMAC-SHA256 cryptographic webhook signatures.
-Implements constant-time string comparison to prevent timing attacks.
-"""
+"""Mock payment gateway client and signature validation."""
 
 import os
 import hmac
@@ -24,9 +17,7 @@ PAYMENT_WEBHOOK_SECRET = os.getenv("PAYMENT_WEBHOOK_SECRET", "super-secret-sandb
 SANDBOX_PUBLIC_KEY = os.getenv("SANDBOX_PUBLIC_KEY", "rzp_test_sandbox_key_12345")
 
 
-# =============================================================
-# 1. PAYMENT ORDER INITIALIZATION
-# =============================================================
+# Initialize payment order
 
 def create_payment_order(order_id: int, amount: Decimal, currency: str = "USD") -> Dict[str, Any]:
     """
@@ -44,9 +35,7 @@ def create_payment_order(order_id: int, amount: Decimal, currency: str = "USD") 
     }
 
 
-# =============================================================
-# 2. HMAC-SHA256 CRYPTOGRAPHIC SIGNATURE ENGINE
-# =============================================================
+# Webhook signature verification
 
 def generate_webhook_signature(payload_bytes: bytes, secret: str = PAYMENT_WEBHOOK_SECRET) -> str:
     """
@@ -84,9 +73,7 @@ def verify_webhook_signature(
     return hmac.compare_digest(expected_signature, provided_signature)
 
 
-# =============================================================
-# 3. SANDBOX TEST HELPER (Simulates Gateway firing a webhook)
-# =============================================================
+# Sandbox webhook helper
 
 def simulate_gateway_webhook(
     order_id: int,

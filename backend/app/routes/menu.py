@@ -17,9 +17,7 @@ router = APIRouter(
 )
 
 
-# =============================================================
-# 1. CATEGORIES ENDPOINT (CACHED)
-# =============================================================
+# Categories
 
 @router.get("/categories", response_model=List[CategoryResponse], summary="Fetch all menu categories (Cached)")
 def get_categories(db: Session = Depends(get_db)):
@@ -50,9 +48,7 @@ def get_categories(db: Session = Depends(get_db)):
     return serialized_categories
 
 
-# =============================================================
-# 2. MENU ITEMS ENDPOINT (CACHED WITH FILTER KEYS)
-# =============================================================
+# Menu items
 
 @router.get("/menu", response_model=List[MenuItemResponse], summary="Browse dishes with optional filters (Cached)")
 def get_menu_items(
@@ -95,9 +91,7 @@ def get_menu_items(
     return serialized_items
 
 
-# =============================================================
-# 3. SINGLE DISH DETAIL ENDPOINT (CACHED)
-# =============================================================
+# Dish details
 
 @router.get("/menu/{item_id}", response_model=MenuItemResponse, summary="Get details for a single dish (Cached)")
 def get_menu_item(item_id: int, db: Session = Depends(get_db)):

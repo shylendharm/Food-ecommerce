@@ -1,15 +1,4 @@
-# =============================================================
-# FILE: backend/app/routes/tracking.py
-# =============================================================
-
-"""
-Real-Time Tracking & WebSocket Router
-Location: backend/app/routes/tracking.py
-
-Exposes:
-1. Bidirectional WebSocket endpoint (/ws/orders/{order_id}) with token handshake auth (SEC-07 Patched).
-2. REST logistics endpoint (/api/orders/{order_id}/logistics) with ownership enforcement (SEC-07 Patched).
-"""
+"""Real-time order tracking and WebSocket location streaming."""
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -28,9 +17,7 @@ router = APIRouter(
 )
 
 
-# =============================================================
-# 1. LIVE WEBSOCKET ENDPOINT (Token Handshake & Ownership Guard)
-# =============================================================
+# WebSocket tracking stream
 
 @router.websocket("/ws/orders/{order_id}")
 async def order_tracking_websocket(
@@ -39,27 +26,19 @@ async def order_tracking_websocket(
     token: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Live WebSocket pipe for an order.
-    SEC-07 Patched:
-    1. Verifies order exists in MySQL.
-    2. Validates cryptographically signed JWT token passed via query param (?token=...).
-    3. Ownership Guard: Asserts order.user_id == token.sub (or role == ADMIN).
-    4. Rejects unauthorized connections with WS_1008_POLICY_VIOLATION before accepting.
-    5. Streams real-time ETA and courier GPS coordinates exclusively to authorized parties.
-    """
-    # Step 1: Verify order exists in MySQL
+    """Stream real-time driver coordinates and order updates over WebSocket."""
+    # Verify order exists
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Step 2: Validate JWT Token presence
+    # Validate JWT token
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # Step 3: Cryptographically decode token and extract claims
+    # Decode token claims
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id_str = payload.get("sub")
@@ -107,9 +86,7 @@ async def order_tracking_websocket(
         ws_manager.disconnect(order_id, websocket)
 
 
-# =============================================================
-# 2. REST LOGISTICS ENDPOINT (Ownership Protected)
-# =============================================================
+# Tracking details endpoint
 
 @router.get("/api/orders/{order_id}/logistics", summary="Get GPS coordinates and Haversine distance (Ownership Protected)")
 def get_order_logistics(
@@ -118,8 +95,7 @@ def get_order_logistics(
     current_user: User = Depends(get_current_user)
 ):
     """
-    HTTP REST endpoint to fetch coordinates, Haversine distance, and ETA.
-    SEC-07 Patched: Requires valid authentication and enforces order ownership.
+    Get delivery route details, distance, and ETA.
     """
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:

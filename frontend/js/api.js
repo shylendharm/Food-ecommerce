@@ -1,18 +1,6 @@
-/* =============================================================
-   FILE: frontend/js/api.js
-   API CLIENT & GLOBAL UI RUNTIME MODULE
-   Centralizes all HTTP network communication with our FastAPI backend.
-   Automatically manages JWT authentication and token persistence.
-   Provides unified design-system modal confirmations and alert dialogs.
-   Environment-Adaptive: Automatically resolves local dev vs cloud production.
-   ============================================================= */
+// API client and session management
 
-/**
- * Resolves the backend API base URL dynamically:
- * 1. Honors explicit global override: window.FOODEXPRESS_API_URL.
- * 2. Defaults to local FastAPI server on localhost/127.0.0.1.
- * 3. In cloud production, routes directly to our live Render backend service.
- */
+// Resolve API base URL: local vs production
 function resolveApiBaseUrl() {
     if (typeof window !== "undefined" && window.FOODEXPRESS_API_URL) {
         return window.FOODEXPRESS_API_URL;
@@ -34,16 +22,11 @@ const TOKEN_KEY = "foodexpress_jwt_token";
 const USER_KEY = "foodexpress_user_profile";
 
 
-/**
- * Centralized fetch wrapper:
- * 1. Automatically injects 'Authorization: Bearer <token>' if user is logged in.
- * 2. Parses JSON responses safely.
- * 3. Catches and bubbles up server error messages cleanly (extracts FastAPI 422 arrays).
- */
+// Base fetch wrapper with auth header injection and error handling
 async function apiRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
 
-    // Read stored JWT token from localStorage (if user is logged in)
+    // Stored auth token
     const token = getStoredToken();
     const authHeaders = token ? { "Authorization": `Bearer ${token}` } : {};
 
@@ -57,11 +40,9 @@ async function apiRequest(endpoint, options = {}) {
             ...options,
         });
 
-        // Handle HTTP error statuses (400, 401, 403, 404, 422, 500)
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
 
-            // If the server indicates the token expired or is invalid
             if (response.status === 401 && token) {
                 console.warn("[Auth] Session expired. Clearing stored credentials.");
                 logoutUser();
@@ -90,9 +71,7 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 
-/* =============================================================
-   1. AUTHENTICATION & SESSION MANAGEMENT
-   ============================================================= */
+// Session storage helpers
 
 function saveAuthSession(token, user) {
     localStorage.setItem(TOKEN_KEY, token);
@@ -123,10 +102,20 @@ function isAdmin() {
     return user && user.role === "ADMIN";
 }
 
-async function loginUser(email, password) {
+// Auth endpoints
+
+async function loginUser(emailOrPayload, password) {
+    let email = emailOrPayload;
+    let pwd = password;
+
+    if (typeof emailOrPayload === "object" && emailOrPayload !== null) {
+        email = emailOrPayload.email;
+        pwd = emailOrPayload.password;
+    }
+
     const data = await apiRequest("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password: pwd }),
     });
 
     saveAuthSession(data.access_token, data.user);
@@ -143,11 +132,38 @@ async function loginWithGoogle(credential) {
     return data;
 }
 
-async function registerUser(name, email, password, phone = null) {
-    return await apiRequest("/auth/register", {
+async function registerUser(nameOrPayload, email, password, phone = null) {
+    let payload = {};
+
+    if (typeof nameOrPayload === "object" && nameOrPayload !== null) {
+        payload = {
+            name: nameOrPayload.name,
+            email: nameOrPayload.email,
+            password: nameOrPayload.password,
+            phone: nameOrPayload.phone || null,
+        };
+    } else {
+        payload = {
+            name: nameOrPayload,
+            email: email,
+            password: password,
+            phone: phone,
+        };
+    }
+
+    const registeredUser = await apiRequest("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, phone }),
+        body: JSON.stringify(payload),
     });
+
+    // Automatically establish session and persist JWT access token
+    try {
+        await loginUser(payload.email, payload.password);
+    } catch (authError) {
+        console.warn("Automatic login following registration encountered an issue:", authError);
+    }
+
+    return registeredUser;
 }
 
 async function getMyProfile() {
@@ -169,9 +185,7 @@ async function updateUserProfile(profileData) {
 }
 
 
-/* =============================================================
-   2. MENU & CATEGORIES API FUNCTIONS
-   ============================================================= */
+// Menu & categories
 
 async function getCategories() {
     return await apiRequest("/categories");
@@ -199,9 +213,7 @@ async function getMenuItemById(itemId) {
 }
 
 
-/* =============================================================
-   3. ORDERS & CHECKOUT API FUNCTIONS
-   ============================================================= */
+// Orders & checkout
 
 async function submitOrder(orderData) {
     return await apiRequest("/orders", {
@@ -225,9 +237,7 @@ async function cancelOrder(orderId) {
 }
 
 
-/* =============================================================
-   4. RESTAURANT ADMIN & KITCHEN API FUNCTIONS
-   ============================================================= */
+// Admin & kitchen queue
 
 async function getAdminOrders(statusFilter = null) {
     const endpoint = statusFilter ? `/admin/orders?status_filter=${statusFilter}` : "/admin/orders";
@@ -255,9 +265,7 @@ async function createMenuItem(dishData) {
 }
 
 
-/* =============================================================
-   5. PAYMENTS & FINANCIAL SETTLEMENTS API FUNCTIONS
-   ============================================================= */
+// Payment endpoints
 
 async function createPaymentIntent(orderId) {
     return await apiRequest("/payments/create-intent", {
@@ -291,9 +299,7 @@ async function getPaymentDetails(orderId) {
 }
 
 
-/* =============================================================
-   6. UNIFIED APP MODAL DIALOG ENGINE (Confirmations & Alerts)
-   ============================================================= */
+// Modal dialogs and alerts
 
 function getOrCreateModalContainer() {
     let container = document.getElementById("app-global-modal-root");

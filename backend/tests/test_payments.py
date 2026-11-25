@@ -1,14 +1,4 @@
-"""
-Automated Test Suite: Financial Settlements, HMAC Webhooks & Ownership Security (SEC-02)
-Location: backend/tests/test_payments.py
-
-Verifies:
-1. Payment intent initialization and transaction ticket generation (Ownership Protected).
-2. Cryptographic rejection (400 Bad Request) on forged or missing HMAC signatures.
-3. Successful settlement and MySQL state transition on genuine HMAC webhook.
-4. Idempotent processing of duplicate webhook events.
-5. Security Penetration Suite (SEC-02: 401 unauthenticated intent, 403 IDOR intent, 401 unauthenticated ledger, 403 IDOR ledger).
-"""
+"""Integration tests for payment creation, webhooks, and HMAC verification."""
 
 import json
 import uuid
@@ -21,9 +11,7 @@ from app.payment_gateway import simulate_gateway_webhook
 client = TestClient(app)
 
 
-# =============================================================
 # HELPER FIXTURES: AUTHENTICATED TEST CUSTOMERS & ORDERS
-# =============================================================
 
 def create_test_customer_auth() -> tuple[dict, dict]:
     """
@@ -80,9 +68,7 @@ def create_test_order(auth_headers: dict = None) -> tuple[dict, dict]:
     return res.json(), auth_headers
 
 
-# =============================================================
 # 1. PAYMENT INTENT INITIALIZATION TEST (HAPPY PATH)
-# =============================================================
 
 def test_create_payment_intent():
     """
@@ -106,9 +92,7 @@ def test_create_payment_intent():
     assert "key_id" in data
 
 
-# =============================================================
 # 2. HACKER ATTACK TESTS: SIGNATURE FORGERY REJECTION (400)
-# =============================================================
 
 def test_forged_webhook_signature_is_rejected():
     """
@@ -151,9 +135,7 @@ def test_missing_signature_header_is_rejected():
     assert res.status_code == 400
 
 
-# =============================================================
 # 3. GENUINE BANK WEBHOOK TEST (HMAC VERIFIED SUCCESS)
-# =============================================================
 
 def test_genuine_bank_webhook_confirms_payment():
     """
@@ -196,9 +178,7 @@ def test_genuine_bank_webhook_confirms_payment():
     assert ledger_res.json()["transaction_id"] == txn_id
 
 
-# =============================================================
 # 4. IDEMPOTENCY TEST: DUPLICATE WEBHOOK RETRIES
-# =============================================================
 
 def test_webhook_idempotency_duplicate_handling():
     """
@@ -232,9 +212,7 @@ def test_webhook_idempotency_duplicate_handling():
     assert res2.json()["status"] == "already_processed"
 
 
-# =============================================================
 # 5. AUTOMATED SECURITY PENETRATION & IDOR SUITE (SEC-02)
-# =============================================================
 
 def test_create_payment_intent_unauthenticated_fails_401():
     """

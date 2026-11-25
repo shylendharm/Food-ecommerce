@@ -1,16 +1,4 @@
-# =============================================================
-# FILE: backend/tests/test_auth.py
-# =============================================================
-
-"""
-Automated Test Suite: Authentication, Security & Profile Management
-Location: backend/tests/test_auth.py
-
-Tests:
-1. Unit: Bcrypt password hashing and verification.
-2. Integration: User registration, duplicate email handling, and JWT issuance.
-3. Profile Management: PUT /api/auth/profile (Happy path, persistence, auth guard, Pydantic validation).
-"""
+"""Integration tests for authentication, registration, and tokens."""
 
 import uuid
 import pytest
@@ -21,9 +9,7 @@ from app.security import hash_password, verify_password
 client = TestClient(app)
 
 
-# =============================================================
 # 1. UNIT TESTS: PASSWORD HASHING
-# =============================================================
 
 def test_password_hashing_unit():
     """
@@ -45,9 +31,7 @@ def test_password_hashing_unit():
     assert verify_password("WrongPassword!", hashed) is False
 
 
-# =============================================================
 # 2. INTEGRATION TESTS: AUTH API ENDPOINTS
-# =============================================================
 
 # Unique test email suffix to guarantee idempotent test isolation across multiple runs
 TEST_UUID = uuid.uuid4().hex[:8]
@@ -133,9 +117,7 @@ def test_login_success_returns_jwt():
     assert data["user"]["default_address"] == "404 Main Street, Bengaluru"
 
 
-# =============================================================
 # 3. ONBOARDING PROFILE MANAGEMENT TESTS (PUT /api/auth/profile)
-# =============================================================
 
 def test_update_profile_unauthenticated_fails():
     """

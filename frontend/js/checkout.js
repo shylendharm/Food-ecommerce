@@ -1,10 +1,4 @@
-/* =============================================================
-   FILE: frontend/js/checkout.js
-   CHECKOUT & ORDER SUBMISSION CONTROLLER
-   Validates delivery info, auto-hydrates saved customer profile & default
-   address, handles COD, and provides resilient, deferred Online Payment flows.
-   Integrated with Unified FoodExpress Modal Dialog Engine.
-   ============================================================= */
+// Checkout page controller and order submission
 
 // Key name used to remember delivery address across sessions
 const SAVED_ADDRESS_KEY = "foodexpress_saved_address";
@@ -58,9 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-/* =============================================================
-   1. AUTO-FILL LOGGED-IN CUSTOMER DATA & DEFAULT ADDRESS
-   ============================================================= */
+// Pre-fill user profile and delivery address
 
 function autoFillUserDetails() {
   if (typeof isAuthenticated !== "function" || !isAuthenticated()) return;
@@ -86,9 +78,7 @@ function autoFillUserDetails() {
 }
 
 
-/* =============================================================
-   2. PAYMENT METHOD SELECTION & BUTTON TEXT
-   ============================================================= */
+// Payment method selection
 
 function initPaymentMethodToggles() {
   const radioButtons = document.querySelectorAll('input[name="payment_method"]');
@@ -109,9 +99,7 @@ function initPaymentMethodToggles() {
 }
 
 
-/* =============================================================
-   3. RENDER ORDER SUMMARY
-   ============================================================= */
+// Order summary and calculation
 
 function renderCheckoutSummary() {
   const itemsContainer = document.getElementById("checkout-items-list");
@@ -154,9 +142,7 @@ function escapeCheckoutText(str) {
 }
 
 
-/* =============================================================
-   4. CHECKOUT FORM SUBMISSION & ROUTING
-   ============================================================= */
+// Order placement handler
 
 async function handleOrderSubmit(e) {
   e.preventDefault();
@@ -253,9 +239,7 @@ async function handleOrderSubmit(e) {
 }
 
 
-/* =============================================================
-   5. SANDBOX PAYMENT MODAL LOGIC (Deferred Order Creation)
-   ============================================================= */
+// Mock payment gateway modal
 
 function openPaymentModal() {
   const modal = document.getElementById("payment-modal");
@@ -320,14 +304,14 @@ function initSandboxPaymentModal() {
     }
 
     try {
-      // Step 1: Commit order to MySQL now that customer authorized payment
+      // Create order record
       const createdOrder = await submitOrder(pendingOrderPayload);
       console.log("[Checkout] Online Order committed to MySQL. ID:", createdOrder.id);
 
-      // Step 2: Initialize Payment Intent with Gateway
+      // Initiate payment intent
       await createPaymentIntent(createdOrder.id);
 
-      // Step 3: Clear shopping cart
+      // Clear cart
       cart = [];
       if (typeof saveCartToStorage === "function") saveCartToStorage();
 

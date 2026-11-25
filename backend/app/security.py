@@ -1,10 +1,4 @@
-"""
-Security & Authentication Utilities
-Location: backend/app/security.py
-
-Handles Bcrypt password hashing, JWT creation/verification,
-and FastAPI route protection dependencies (get_current_user, get_current_admin).
-"""
+"""Password hashing and JWT authentication utilities."""
 
 import os
 from datetime import datetime, timedelta
@@ -23,13 +17,11 @@ from app.models import User, UserRole
 # 1. Load secret environment variables
 load_dotenv()
 
-# Cryptographic Token Signing Key Configuration
 FALLBACK_SECRET_KEY = "super-secret-fallback-key-change-in-production"
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", FALLBACK_SECRET_KEY)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
-# Enforce Cryptographic Production Boundary (SEC-04 Remediation)
-# Fail-fast startup guard: Halt boot if running in production with a default or missing secret key
+# Require explicit secret key in production
 if ENVIRONMENT in ("production", "prod"):
     if not SECRET_KEY or SECRET_KEY == FALLBACK_SECRET_KEY:
         raise RuntimeError(
@@ -41,17 +33,14 @@ if ENVIRONMENT in ("production", "prod"):
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # Tokens stay valid for 24 hours
 
-# 2. Setup the Bcrypt password hashing engine
+# Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# 3. OAuth2 Scheme: Instructs FastAPI to look for 'Authorization: Bearer <token>' in HTTP headers.
-# auto_error=False allows optional authentication (e.g., guest checkouts) without crashing immediately.
+# Bearer token scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
-# =============================================================
-# PASSWORD HASHING FUNCTIONS
-# =============================================================
+# Password hashing
 
 def hash_password(plain_password: str) -> str:
     """
@@ -69,9 +58,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-# =============================================================
-# JWT (JSON WEB TOKEN) CREATION
-# =============================================================
+# JWT token generation
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
@@ -89,9 +76,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-# =============================================================
-# AUTHENTICATION & RBAC DEPENDENCIES (THE GATEKEEPERS)
-# =============================================================
+# Auth dependencies and role guards
 
 def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),

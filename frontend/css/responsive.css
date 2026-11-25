@@ -1,11 +1,7 @@
-/* =============================================================
-   FOODEXPRESS ADAPTIVE RESPONSIVE STYLESHEET
-   Mobile-First & Tablet Breakpoints for Customer & Admin Portals
-   ============================================================= */
+/* FOODEXPRESS ADAPTIVE RESPONSIVE STYLESHEET
+   Mobile-First & Tablet Breakpoints for Customer & Admin Portals */
 
-/* -------------------------------------------------------------
-   1. TABLET & MEDIUM VIEWPORTS (max-width: 900px)
-   ------------------------------------------------------------- */
+/* TABLET & MEDIUM VIEWPORTS (max-width: 900px) */
 @media (max-width: 900px) {
 
     .container,
@@ -84,9 +80,7 @@
     }
 }
 
-/* -------------------------------------------------------------
-   2. MOBILE PHONES & COMPACT VIEWPORTS (max-width: 640px)
-   ------------------------------------------------------------- */
+/* MOBILE PHONES & COMPACT VIEWPORTS (max-width: 640px) */
 @media (max-width: 640px) {
 
     /* iOS Safari Auto-Zoom Prevention */
@@ -96,9 +90,7 @@
         font-size: 16px !important;
     }
 
-    /* =========================================================
-       CUSTOMER STOREFRONT (index.html)
-       ========================================================= */
+    /* CUSTOMER STOREFRONT (index.html) */
     .navbar {
         position: sticky;
         top: 0;
@@ -264,9 +256,7 @@
         padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
     }
 
-    /* =========================================================
-       AUTHENTICATION PORTAL (login.html & profile-setup.html)
-       ========================================================= */
+    /* AUTHENTICATION PORTAL (login.html & profile-setup.html) */
     .auth-portal-wrapper {
         min-height: 100vh;
         display: flex;
@@ -357,9 +347,7 @@
         line-height: 1.4;
     }
 
-    /* =========================================================
-       CHECKOUT & LIVE TRACKING (checkout.html & tracking.html)
-       ========================================================= */
+    /* CHECKOUT & LIVE TRACKING (checkout.html & tracking.html) */
     .checkout-main,
     .tracking-main {
         margin: 16px auto 36px;
@@ -421,9 +409,7 @@
         font-size: 0.84rem;
     }
 
-    /* =========================================================
-       RESTAURANT COMMAND CENTER & ADMIN PORTAL (admin.html)
-       ========================================================= */
+    /* RESTAURANT COMMAND CENTER & ADMIN PORTAL (admin.html) */
 
     /* Admin Topbar */
     .admin-topbar {
@@ -760,9 +746,7 @@
     }
 }
 
-/* -------------------------------------------------------------
-   3. EXTRA-COMPACT MOBILE PHONES (max-width: 380px)
-   ------------------------------------------------------------- */
+/* EXTRA-COMPACT MOBILE PHONES (max-width: 380px) */
 @media (max-width: 380px) {
 
     .hero-content h1 {

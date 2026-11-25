@@ -1,12 +1,4 @@
-"""
-Redis In-Memory Caching Engine & Rate Limiter Store
-Location: backend/app/cache.py
-
-Manages high-speed RAM caching for read-heavy endpoints (Menu, Categories)
-and provides atomic distributed counters for brute-force rate limiting (SEC-06).
-Implements the Cache-Aside pattern with TTL expiration and pattern-based invalidation.
-Supports standard cloud REDIS_URL connection strings with graceful fallback.
-"""
+"""Redis cache client and rate limiting utilities."""
 
 import os
 import json
@@ -17,22 +9,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# -------------------------------------------------------------
-# 1. Resolve Cloud Redis Connection String (12-Factor Pattern)
-# -------------------------------------------------------------
+# Redis connection
 REDIS_URL = os.getenv("REDIS_URL")
 DEFAULT_CACHE_TTL = 3600  # Default Time-To-Live: 1 hour (3600 seconds)
 
 try:
     if REDIS_URL:
-        # Standard cloud connection string (supports redis:// and TLS rediss://)
         redis_client = redis.from_url(
             REDIS_URL,
             decode_responses=True,
             socket_connect_timeout=2
         )
     else:
-        # Localhost development fallback
         REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
         REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
         REDIS_DB = int(os.getenv("REDIS_DB", 0))
@@ -51,22 +39,17 @@ except Exception as e:
     redis_client = None
 
 
-# Helper to serialize Python types like Decimal and datetime to JSON
+# JSON serialization helper
 def json_serial_helper(obj: Any) -> Any:
     if isinstance(obj, Decimal):
         return float(obj)
     raise TypeError(f"Type {type(obj)} is not JSON serializable")
 
 
-# =============================================================
-# CACHE ACCESS FUNCTIONS (GET, SET, PURGE)
-# =============================================================
+# Cache helpers
 
 def get_cache(key: str) -> Optional[Any]:
-    """
-    Reads cached data from Redis.
-    Returns: Parsed Python dict/list if CACHE HIT, None if CACHE MISS or error.
-    """
+    """Get cached data from Redis."""
     if not redis_client:
         return None
     try:

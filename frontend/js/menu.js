@@ -1,9 +1,4 @@
-/* =============================================================
-   MENU & STOREFRONT CONTROLLER (frontend/js/menu.js)
-   Fetches dishes from FastAPI, powers real-time in-memory search,
-   self-healing food images, and interactive [ - 1 + ] card steppers.
-   Theme: Modern Minimalist Light (UberEats / DoorDash Aesthetic)
-   ============================================================= */
+// Storefront menu listing, search filters, and categories
 
 // Active filter state
 let selectedCategoryId = "";
@@ -70,9 +65,7 @@ function getDishPrepTime(dishId) {
 }
 
 
-/* =============================================================
-   1. LOAD & RENDER CATEGORIES
-   ============================================================= */
+// Categories
 
 async function loadCategories() {
   const tabsContainer = document.getElementById("category-tabs");
@@ -110,9 +103,7 @@ async function loadCategories() {
 }
 
 
-/* =============================================================
-   2. LOAD & RENDER MENU ITEMS
-   ============================================================= */
+// Menu items
 
 async function loadMenu() {
   const grid = document.getElementById("menu-grid");
@@ -149,9 +140,7 @@ async function loadMenu() {
 }
 
 
-/* =============================================================
-   3. REAL-TIME SEARCH FILTER ENGINE & MINIMALIST CARD RENDERER
-   ============================================================= */
+// Search and filtering
 
 /**
  * Generates the HTML for a dish card action: either [+ Add] or [ - qty + ]
@@ -270,9 +259,7 @@ function escapeHtml(string) {
 }
 
 
-/* =============================================================
-   4. INTERACTIVE STEPPER CONTROLS & CART SYNCHRONIZATION
-   ============================================================= */
+// Quantity steppers
 
 function handleAddToCart(e, dishId) {
   if (e) e.stopPropagation();
@@ -315,9 +302,7 @@ if (typeof window.updateCartUI === "function") {
 }
 
 
-/* =============================================================
-   5. PAGE INITIALIZATION & EVENT LISTENERS
-   ============================================================= */
+// Page initialization
 document.addEventListener("DOMContentLoaded", () => {
   loadCategories();
   loadMenu();

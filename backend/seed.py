@@ -1,15 +1,4 @@
-"""
-Database Reset & Enterprise Seeding Script
-Location: backend/seed.py
-
-1. Purges all previous records from MySQL (users, orders, payments, menu_items, categories).
-2. Flushes the Redis RAM cache to purge all stale cached menu responses.
-3. Inserts 4 categories with 20 distinct dishes each (80 items total) across Veg and Non-Veg.
-4. Uses verified, high-res Unsplash food photography.
-
-Run directly in terminal:
-    python backend/seed.py
-"""
+"""Database reset and seed script for FoodExpress menu items and categories."""
 
 from decimal import Decimal
 from sqlalchemy import text
@@ -22,7 +11,7 @@ def reset_and_seed():
     db = SessionLocal()
 
     try:
-        print("🧹 Step 1: Purging all stale data from MySQL...")
+        print("Resetting database tables...")
         # Temporarily disable foreign key constraints to allow clean truncates
         db.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
         db.execute(text("TRUNCATE TABLE payments;"))
@@ -33,19 +22,19 @@ def reset_and_seed():
         db.execute(text("TRUNCATE TABLE users;"))
         db.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
         db.commit()
-        print("   ✅ MySQL tables emptied successfully.")
+        print("Tables reset.")
 
-        # Step 2: Flush Redis Cache
-        print("⚡ Step 2: Flushing Redis in-memory cache...")
+        # Flush Redis Cache
+        print("Flushing Redis cache...")
         try:
             if redis_client:
                 redis_client.flushdb()
-                print("   ✅ Redis cache flushed (all stale menu:* keys cleared).")
+                print("Redis cache cleared.")
         except Exception as redis_err:
-            print(f"   ⚠️ Could not flush Redis: {redis_err}")
+            print(f"   Could not flush Redis: {redis_err}")
 
-        # Step 3: Insert 4 Categories
-        print("🌱 Step 3: Creating 4 Core Menu Categories...")
+        # Create categories
+        print("Seeding categories...")
         cat_pizzas = Category(name="Pizzas", slug="pizzas")
         cat_burgers = Category(name="Burgers & Sandwiches", slug="burgers")
         cat_sides = Category(name="Sides & Appetizers", slug="sides-appetizers")
@@ -54,12 +43,10 @@ def reset_and_seed():
         db.add_all([cat_pizzas, cat_burgers, cat_sides, cat_desserts])
         db.flush() # Flushes to MySQL to generate category IDs
 
-        print("🍕 Step 4: Seeding 80 Gourmet Dishes (20 per category)...")
+        print("Seeding menu items...")
 
         dishes = [
-            # =========================================================
-            # CATEGORY 1: PIZZAS (20 Dishes: 10 Veg, 10 Non-Veg)
-            # =========================================================
+            # Pizzas
             # --- Veg Pizzas ---
             MenuItem(
                 category_id=cat_pizzas.id,
@@ -244,9 +231,7 @@ def reset_and_seed():
                 is_available=True
             ),
 
-            # =========================================================
-            # CATEGORY 2: BURGERS & SANDWICHES (20 Dishes: 10 Veg, 10 Non-Veg)
-            # =========================================================
+            # Burgers & Sandwiches
             # --- Veg Burgers ---
             MenuItem(
                 category_id=cat_burgers.id,
@@ -431,9 +416,7 @@ def reset_and_seed():
                 is_available=True
             ),
 
-            # =========================================================
-            # CATEGORY 3: SIDES & APPETIZERS (20 Dishes: 12 Veg, 8 Non-Veg)
-            # =========================================================
+            # Sides & Appetizers
             # --- Veg Sides ---
             MenuItem(
                 category_id=cat_sides.id,
@@ -618,9 +601,7 @@ def reset_and_seed():
                 is_available=True
             ),
 
-            # =========================================================
-            # CATEGORY 4: DESSERTS & BEVERAGES (20 Dishes: 18 Veg, 2 Non-Veg)
-            # =========================================================
+            # Desserts & Beverages
             # --- Desserts & Drinks (Veg) ---
             MenuItem(
                 category_id=cat_desserts.id,

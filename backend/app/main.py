@@ -1,32 +1,18 @@
-"""
-Main Application Entrypoint
-Location: backend/app/main.py
-
-Initializes the FastAPI application, configures CORS middleware,
-and mounts all modular API routers.
-Database schema is managed strictly via Alembic migrations.
-"""
+"""FastAPI application entrypoint, middleware, and route mounting."""
 
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import all modular routers (including tracking & websockets)
 from app.routes import menu, orders, auth, admin, payments, tracking
 
-# Initialize the master FastAPI application
 app = FastAPI(
     title="Food Ordering & Restaurant API",
     description="Full-stack food delivery backend built with FastAPI, SQLAlchemy, Redis, and WebSockets.",
     version="1.0.0"
 )
 
-# -------------------------------------------------------------
-# CORS (Cross-Origin Resource Sharing) Middleware
-# -------------------------------------------------------------
-# Defense against SEC-03: Insecure CORS Wildcard with Credentials Enabled.
-# The W3C CORS standard forbids combining allow_origins=["*"] with allow_credentials=True.
-# We establish an explicit origin whitelist with environment variable extensibility.
+# CORS origin configuration
 origins = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
@@ -36,7 +22,6 @@ origins = [
     "http://127.0.0.1:8000",
 ]
 
-# Permit dynamic addition of production URLs via environment variables
 production_origin = os.getenv("PRODUCTION_FRONTEND_URL")
 if production_origin:
     origins.append(production_origin)
@@ -49,13 +34,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],       # Allow all HTTP methods (GET, POST, PATCH, DELETE, etc.)
-    allow_headers=["*"],       # Allow all standard headers (Content-Type, Authorization, etc.)
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# -------------------------------------------------------------
-# Mount the Modular Routers
-# -------------------------------------------------------------
+# Mount routes
 app.include_router(menu.router)
 app.include_router(orders.router)
 app.include_router(auth.router)
@@ -64,14 +47,10 @@ app.include_router(payments.router)
 app.include_router(tracking.router)
 
 
-# -------------------------------------------------------------
-# Health Check / Root Endpoint
-# -------------------------------------------------------------
+# Health check
 @app.get("/", tags=["Health Check"])
 def root():
-    """
-    Root endpoint to quickly verify that the server is online and running.
-    """
+    """Root health check endpoint."""
     return {
         "status": "online",
         "message": "Welcome to the Food Ordering API!",

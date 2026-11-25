@@ -1,15 +1,4 @@
-"""
-Automated Test Suite: Admin Portal, Executive Metrics, RBAC & Order Lifecycle
-Location: backend/tests/test_admin.py
-
-Verifies:
-1. 401 Unauthorized when unauthenticated strangers attempt admin routes.
-2. 403 Forbidden when regular customers attempt admin routes.
-3. 200 OK & mathematical integrity for GET /api/admin/metrics.
-4. 200 OK & 80-dish inventory visibility for GET /api/admin/menu.
-5. 200 OK and 201 Created when master admin advances orders, adds dishes, or toggles stock.
-6. 200 OK when master admin voids/cancels an order (CANCELLED status lifecycle).
-"""
+"""Integration tests for admin dashboard and kitchen operations."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -36,9 +25,7 @@ def get_admin_auth_header() -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-# =============================================================
 # 1. UNAUTHENTICATED TESTS (Should be 401 Unauthorized)
-# =============================================================
 
 def test_unauthenticated_requests_are_rejected():
     """
@@ -66,9 +53,7 @@ def test_unauthenticated_requests_are_rejected():
     assert res5.status_code == 401
 
 
-# =============================================================
 # 2. CUSTOMER RBAC TESTS (Should be 403 Forbidden on Admin routes)
-# =============================================================
 
 def test_customer_can_access_profile_and_my_orders():
     """
@@ -124,9 +109,7 @@ def test_customer_is_forbidden_from_admin_portal():
     assert res_create.status_code == 403
 
 
-# =============================================================
 # 3. GENUINE ADMIN TESTS (shylendharm369@gmail.com)
-# =============================================================
 
 def test_admin_metrics_telemetry():
     """

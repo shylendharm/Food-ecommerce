@@ -1,16 +1,4 @@
-/* =============================================================
-   ORDER TRACKING & REAL-TIME TELEMETRY MODULE
-   Location: frontend/js/tracking.js
-
-   Responsibilities:
-   1. Fetches authentic order & logistics telemetry with JWT authentication.
-   2. Initializes Leaflet.js with Esri World Street Map (No API Key & No Watermark).
-   3. Draws route polyline and custom markers with XSS-sanitized popups (SEC-05 Patched).
-   4. Connects to the full-duplex WebSocket channel with token handshake (SEC-07 Patched).
-   5. Dynamic Protocol Resolver: Automatically uses wss:// on HTTPS and ws:// on HTTP.
-   6. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
-   7. Provides interactive customer order cancellation controls using unified design modals.
-   ============================================================= */
+// Real-time tracking, live map markers, and WebSocket telemetry
 
 // Global holders for Leaflet map elements, WebSocket connection, and active order
 let map = null;
@@ -22,9 +10,7 @@ let socket = null;
 let currentOrderId = null;
 
 
-// =============================================================
-// 1. PAGE INITIALIZATION ON DOM READY
-// =============================================================
+// Page initialization
 
 document.addEventListener("DOMContentLoaded", async () => {
     // 1. Extract ?order_id=... from the browser URL address bar
@@ -103,32 +89,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 
-// =============================================================
-// 2. LEAFLET MAP INITIALIZATION & MARKER PLACEMENT
-// =============================================================
+// Map setup and markers
 
-/**
- * Initializes the Leaflet map with Esri World Street Map tiles, custom
- * markers, and a dashed geodesic route line.
- * SEC-05 Patched: Sanitizes customer name and address before popup interpolation.
- */
+// Initialize Leaflet map and delivery markers
 function initLeafletMap(order, logistics) {
     const restCoords = [logistics.restaurant_coordinates.lat, logistics.restaurant_coordinates.lon];
     const custCoords = [logistics.customer_coordinates.lat, logistics.customer_coordinates.lon];
 
-    // 1. Create Leaflet map centered at the restaurant
+    // Create map centered at restaurant
     map = L.map('tracking-map', {
         zoomControl: true,
         attributionControl: false
     }).setView(restCoords, 13);
 
-    // 2. Add Esri World Street Map layer (High-resolution, No API Key, No Watermark)
+    // Add map tile layer
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, TomTom',
         maxZoom: 19
     }).addTo(map);
 
-    // 3. Custom Icons using Leaflet L.divIcon
+    // Map pin icons
     const kitchenIcon = L.divIcon({
         className: 'custom-map-icon icon-kitchen',
         html: '<span class="map-pin-badge kitchen-pin">K</span>',
@@ -150,12 +130,12 @@ function initLeafletMap(order, logistics) {
         iconAnchor: [21, 21]
     });
 
-    // 4. Place Restaurant pin
+    // Restaurant marker
     restaurantMarker = L.marker(restCoords, { icon: kitchenIcon })
         .addTo(map)
         .bindPopup("<b>FoodExpress Kitchen</b><br>Downtown Central Store");
 
-    // SEC-05 Patched: Neutralize raw HTML before binding Leaflet popup
+    // Escape HTML for customer popup
     const safeCustomerName = escapeHtml(order.customer_name);
     const safeCustomerAddress = escapeHtml(order.delivery_address);
 
@@ -163,7 +143,7 @@ function initLeafletMap(order, logistics) {
         .addTo(map)
         .bindPopup(`<b>${safeCustomerName}</b><br>${safeCustomerAddress}`);
 
-    // 5. Draw connecting route polyline
+    // Route line
     routePolyline = L.polyline([restCoords, custCoords], {
         color: '#4F46E5',
         weight: 4,
@@ -201,9 +181,7 @@ function calculateRiderPosition(status, restCoords, custCoords) {
 }
 
 
-// =============================================================
-// 3. REAL-TIME WEBSOCKET CLIENT WITH TOKEN HANDSHAKE
-// =============================================================
+// WebSocket connection & live coordinates
 
 /**
  * Dynamically resolves the full WebSocket endpoint:
@@ -324,9 +302,7 @@ function connectTrackingWebSocket(orderId) {
 }
 
 
-// =============================================================
-// 4. UI METRIC & STEPPER SYNCHRONIZATION
-// =============================================================
+// Status stepper & ETA sync
 
 /**
  * Updates visual stepper, dynamic ETA, cancellation button, and handles CANCELLED state
@@ -341,9 +317,7 @@ function updateUIState(status, logistics) {
     // Manage Cancel Button: visible ONLY while status is PENDING
     manageCancelOrderButton(status);
 
-    // =========================================================
-    // CASE A: ORDER IS CANCELLED
-    // =========================================================
+    // Order cancelled state
     if (status === "CANCELLED") {
         if (topBadge) {
             topBadge.textContent = "Order Cancelled";
@@ -385,9 +359,7 @@ function updateUIState(status, logistics) {
         return;
     }
 
-    // =========================================================
-    // CASE B: ACTIVE / DELIVERED ORDER
-    // =========================================================
+    // Active / delivered order state
 
     const existingBanner = document.getElementById("order-cancellation-banner");
     if (existingBanner) existingBanner.remove();
@@ -454,9 +426,7 @@ function updateStepper(status) {
 }
 
 
-// =============================================================
-// 5. CUSTOMER ORDER CANCELLATION HANDLERS
-// =============================================================
+// Order cancellation handlers
 
 function manageCancelOrderButton(status) {
     const existingContainer = document.getElementById("customer-cancel-container");

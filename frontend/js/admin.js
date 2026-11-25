@@ -1,8 +1,4 @@
-/* =============================================================
-   RESTAURANT OPERATIONS COMMAND CENTER (frontend/js/admin.js)
-   Executive KPIs, Kitchen Display System (KDS) Queue,
-   and 80-Dish Instant Inventory Stock Controls.
-   ============================================================= */
+// Admin dashboard, kitchen order queue, and menu inventory
 
 // Global State
 let currentStatusFilter = ""; // "" means all tickets
@@ -25,9 +21,7 @@ const CATEGORY_FALLBACK_IMAGES = {
     4: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=300&q=80"
 };
 
-/* =============================================================
-   1. INITIALIZATION & RBAC SECURITY GUARD
-   ============================================================= */
+// Auth guard & init
 
 document.addEventListener("DOMContentLoaded", () => {
     // 1. RBAC Guard: Strictly verify ADMIN role
@@ -61,9 +55,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 
-/* =============================================================
-   2. REVENUE & EXECUTIVE METRICS (KPIs)
-   ============================================================= */
+// Dashboard metrics
 
 async function loadExecutiveMetrics() {
     try {
@@ -86,9 +78,7 @@ async function loadExecutiveMetrics() {
 }
 
 
-/* =============================================================
-   3. NAVIGATION TABS & UTILITIES
-   ============================================================= */
+// Tab navigation
 
 function initNavigationTabs() {
     const tabOrders = document.getElementById("admin-tab-orders");
@@ -124,9 +114,7 @@ function refreshDashboard() {
 }
 
 
-/* =============================================================
-   4. REAL-TIME POLLING LOOP (KEEPS TICKETS SYNCED)
-   ============================================================= */
+// Live order polling
 
 function startOrderPollingLoop() {
     // Poll every 12 seconds for fresh orders
@@ -150,9 +138,7 @@ async function silentOrdersCheck() {
 }
 
 
-/* =============================================================
-   5. KDS FILTER & SEARCH TOOLBAR
-   ============================================================= */
+// Search & status filters
 
 function initFilterButtons() {
     const filterButtons = document.querySelectorAll(".order-filter-btn");
@@ -183,9 +169,7 @@ function initSearchInputs() {
 }
 
 
-/* =============================================================
-   6. LOAD & RENDER KITCHEN ORDER TICKETS
-   ============================================================= */
+// Render order queue
 
 async function loadAdminOrders() {
     const container = document.getElementById("admin-orders-container");
@@ -281,9 +265,7 @@ function renderKitchenTicket(order) {
         </div>
     `).join("");
 
-    // =============================================================
-    // FILE: frontend/js/admin.js (Lines 285–331)
-    // =============================================================
+    // Status transition actions
 
     // Next Action Buttons with Full Operational Cancellation
     let actionButtonsHtml = "";
@@ -425,9 +407,7 @@ async function handleStatusAdvance(orderId, nextStatus, buttonElement) {
 }
 
 
-/* =============================================================
-   7. 80-DISH INVENTORY STOCK CONTROLLER (VIEW 2)
-   ============================================================= */
+// Menu stock management
 
 async function loadAdminInventory() {
     const container = document.getElementById("admin-inventory-table-container");
@@ -590,9 +570,7 @@ function attachInventoryToggleListeners() {
 }
 
 
-/* =============================================================
-   8. UTILITY HELPERS
-   ============================================================= */
+// Helpers
 
 function formatTimeAgo(dateString) {
     if (!dateString) return "just now";
