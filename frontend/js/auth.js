@@ -2,8 +2,8 @@
    FILE: frontend/js/auth.js
    AUTHENTICATION & ROUTE GUARD CONTROLLER
    Enforces mandatory global authentication guards, onboarding
-   lifecycle routing, typographic navbar, live Google OAuth2 SSO,
-   and clean minimalist sign-out confirmation.
+   lifecycle routing, typographic navbar, live Google OAuth2 SSO
+   with dynamic responsive button width, and sign-out confirmation.
    ============================================================= */
 
 // Official Google Cloud OAuth 2.0 Web Client ID
@@ -79,7 +79,8 @@ function enforceRouteGuard() {
 
 
 /* =============================================================
-   2. NAVBAR STATE CONTROLLER (Typographic Name Only - No Avatars)
+   2. NAVBAR STATE CONTROLLER (Typographic Name Pill & Floating Card)
+   Matches style.css .user-menu-container & .user-dropdown
    ============================================================= */
 
 function initAuthNavbar() {
@@ -106,27 +107,27 @@ function initAuthNavbar() {
         dropdownBody = `
             <div class="dropdown-header">
                 <div class="dropdown-user-name">
-                    ${displayName}
+                    ${escapeHtml(displayName)}
                     <span style="display: inline-block; background: rgba(225, 29, 72, 0.1); color: var(--primary, #E11D48); border: 1px solid rgba(225, 29, 72, 0.25); font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; vertical-align: middle; margin-left: 6px; text-transform: uppercase;">Admin</span>
                 </div>
-                <div class="dropdown-user-email">${user?.email || ""}</div>
+                <div class="dropdown-user-email">${escapeHtml(user?.email || "")}</div>
             </div>
             <div class="dropdown-divider"></div>
             <a href="profile-setup.html" class="dropdown-item">
                 <span>Edit Profile</span>
             </a>
-            <button id="logout-btn" class="dropdown-item logout">
+            <button type="button" id="logout-btn" class="dropdown-item logout">
                 <span>Sign Out</span>
             </button>
         `;
     } else {
         dropdownBody = `
             <div class="dropdown-header">
-                <div class="dropdown-user-name">${displayName}</div>
-                <div class="dropdown-user-email">${user?.email || ""}</div>
+                <div class="dropdown-user-name">${escapeHtml(displayName)}</div>
+                <div class="dropdown-user-email">${escapeHtml(user?.email || "")}</div>
                 ${user?.default_address ? `
                     <div style="font-size: 0.75rem; color: var(--text-muted, #71717A); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;">
-                        ${user.default_address}
+                        ${escapeHtml(user.default_address)}
                     </div>
                 ` : ""}
             </div>
@@ -137,17 +138,17 @@ function initAuthNavbar() {
                 <span>Edit Profile</span>
             </a>
             <div class="dropdown-divider"></div>
-            <button id="logout-btn" class="dropdown-item logout">
+            <button type="button" id="logout-btn" class="dropdown-item logout">
                 <span>Sign Out</span>
             </button>
         `;
     }
 
-    // Pure typographic presentation: NO profile images and NO avatar circles
+    // Restored pure typographic presentation matching style.css selectors
     authNavContainer.innerHTML = `
         <div class="user-menu-container">
-            <button id="user-menu-btn" class="user-menu-btn" aria-label="Open User Menu">
-                <span>Hi, ${displayName}</span>
+            <button type="button" id="user-menu-btn" class="user-menu-btn" aria-label="Open User Menu">
+                <span>Hi, ${escapeHtml(displayName)}</span>
                 <span style="font-size: 0.72rem; margin-left: 4px;">▼</span>
             </button>
             <div id="user-dropdown" class="user-dropdown">
@@ -156,145 +157,197 @@ function initAuthNavbar() {
         </div>
     `;
 
+    // Dropdown toggle logic using .show class defined in style.css:248
     const menuBtn = document.getElementById("user-menu-btn");
     const dropdown = document.getElementById("user-dropdown");
     const logoutBtn = document.getElementById("logout-btn");
 
-    menuBtn?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dropdown?.classList.toggle("show");
-    });
-
-    document.addEventListener("click", (e) => {
-        if (!dropdown?.contains(e.target) && e.target !== menuBtn) {
-            dropdown?.classList.remove("show");
-        }
-    });
-
-    // Intercept Sign Out with Clean Minimalist Confirmation Modal
-    logoutBtn?.addEventListener("click", async () => {
-        dropdown?.classList.remove("show");
-
-        const confirmed = await showAppConfirm({
-            title: "Sign Out",
-            message: "Are you sure you want to sign out of FoodExpress? You will need to sign in again to place orders.",
-            confirmText: "Sign Out",
-            cancelText: "Stay",
-            isDanger: true
+    if (menuBtn && dropdown) {
+        menuBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle("show");
         });
 
-        if (confirmed) {
-            logoutUser();
-            window.location.href = "login.html";
-        }
-    });
+        document.addEventListener("click", (e) => {
+            if (!dropdown.contains(e.target) && e.target !== menuBtn) {
+                dropdown.classList.remove("show");
+            }
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", handleUserSignOut);
+    }
+}
+
+/**
+ * Clean Sign Out flow with Unified Modal Confirmation
+ */
+async function handleUserSignOut() {
+    let confirmed = true;
+    if (typeof showAppConfirm === "function") {
+        confirmed = await showAppConfirm({
+            title: "Sign Out",
+            message: "Are you sure you want to end your FoodExpress session?",
+            tag: "Session",
+            confirmText: "Sign Out",
+            cancelText: "Stay Logged In"
+        });
+    } else {
+        confirmed = window.confirm("Are you sure you want to sign out?");
+    }
+
+    if (confirmed) {
+        logoutUser();
+    }
 }
 
 
 /* =============================================================
-   3. DEDICATED LOGIN PORTAL CONTROLLER (login.html)
+   3. LOGIN PAGE CONTROLLER (login.html)
    ============================================================= */
 
 function initLoginPage() {
-    const form = document.getElementById("portal-form");
-    if (!form) return;
-
-    let mode = "login"; // "login" | "register"
+    const isLoginPage = window.location.pathname.toLowerCase().endsWith("login.html");
+    if (!isLoginPage) return;
 
     const tabLogin = document.getElementById("tab-login");
     const tabRegister = document.getElementById("tab-register");
-    const nameGroup = document.getElementById("field-name-group");
-    const nameInput = document.getElementById("input-name");
-    const emailInput = document.getElementById("input-email");
-    const passwordInput = document.getElementById("input-password");
+    const fieldNameGroup = document.getElementById("field-name-group");
     const submitBtn = document.getElementById("portal-submit-btn");
+    const form = document.getElementById("portal-form");
     const subtitle = document.getElementById("portal-subtitle");
 
-    function setMode(newMode) {
-        mode = newMode;
-        showPortalError(null);
-        if (mode === "login") {
-            tabLogin?.classList.add("active");
-            tabRegister?.classList.remove("active");
-            nameGroup?.classList.add("auth-field-hidden");
-            nameInput?.removeAttribute("required");
-            if (submitBtn) submitBtn.textContent = "Sign In";
-            if (subtitle) subtitle.textContent = "Sign in to your account to continue";
-        } else {
+    let isRegisterMode = false;
+
+    function setAuthMode(register) {
+        isRegisterMode = register;
+        if (isRegisterMode) {
             tabRegister?.classList.add("active");
             tabLogin?.classList.remove("active");
-            nameGroup?.classList.remove("auth-field-hidden");
-            nameInput?.setAttribute("required", "true");
+            fieldNameGroup?.classList.remove("auth-field-hidden");
             if (submitBtn) submitBtn.textContent = "Create Account";
-            if (subtitle) subtitle.textContent = "Create your FoodExpress account";
+            if (subtitle) subtitle.textContent = "Join FoodExpress to start ordering fresh meals";
+        } else {
+            tabLogin?.classList.add("active");
+            tabRegister?.classList.remove("active");
+            fieldNameGroup?.classList.add("auth-field-hidden");
+            if (submitBtn) submitBtn.textContent = "Sign In";
+            if (subtitle) subtitle.textContent = "Sign in to your account to continue";
         }
+        showPortalError("");
     }
 
-    tabLogin?.addEventListener("click", () => setMode("login"));
-    tabRegister?.addEventListener("click", () => setMode("register"));
+    tabLogin?.addEventListener("click", () => setAuthMode(false));
+    tabRegister?.addEventListener("click", () => setAuthMode(true));
 
-    // Form Submission: Sign In or Create Account
-    form.addEventListener("submit", async (e) => {
+    form?.addEventListener("submit", async (e) => {
         e.preventDefault();
-        showPortalError(null);
-        if (submitBtn) submitBtn.disabled = true;
+        showPortalError("");
 
-        const email = emailInput.value.trim();
-        const password = passwordInput.value;
+        const email = document.getElementById("input-email")?.value.trim();
+        const password = document.getElementById("input-password")?.value;
+        const name = document.getElementById("input-name")?.value.trim();
+
+        if (!email || !password) {
+            showPortalError("Email address and password are required.");
+            return;
+        }
+
+        if (isRegisterMode && !name) {
+            showPortalError("Full Name is required to create your account.");
+            return;
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = isRegisterMode ? "Creating Account..." : "Signing In...";
+        }
 
         try {
-            if (mode === "register") {
-                const name = nameInput.value.trim();
-                if (name.length < 2) {
-                    throw new Error("Full Name must contain at least 2 characters.");
-                }
-
-                // 1. Create account in database
-                await registerUser(name, email, password);
-
-                // 2. Log in with newly created credentials to receive JWT token
-                await loginUser(email, password);
-
-                // 3. Immediately route to mandatory profile onboarding setup
-                window.location.href = "profile-setup.html";
+            if (isRegisterMode) {
+                await registerUser({ name, email, password });
             } else {
-                // Sign In mode
-                const loginData = await loginUser(email, password);
-                const user = loginData.user;
-
-                // If profile missing phone or address, intercept to onboarding
-                if (!user.phone || !user.default_address) {
-                    window.location.href = "profile-setup.html";
-                    return;
-                }
-
-                if (user.role === "ADMIN") {
-                    window.location.href = "admin.html";
-                } else {
-                    window.location.href = "index.html";
-                }
+                await loginUser(email, password);
             }
-        } catch (err) {
-            showPortalError(err.message || "Authentication failed. Please verify credentials.");
-        } finally {
-            if (submitBtn) submitBtn.disabled = false;
+
+            const user = getStoredUser();
+
+            // Redirect flow
+            if (user?.role === "ADMIN") {
+                window.location.href = "admin.html";
+                return;
+            }
+
+            if (!user?.phone || !user?.default_address) {
+                window.location.href = "profile-setup.html";
+                return;
+            }
+
+            const redirect = sessionStorage.getItem("post_login_redirect");
+            if (redirect) {
+                sessionStorage.removeItem("post_login_redirect");
+                window.location.href = redirect;
+                return;
+            }
+
+            window.location.href = "index.html";
+
+        } catch (error) {
+            showPortalError(error.message || "Authentication failed. Please verify credentials.");
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = isRegisterMode ? "Create Account" : "Sign In";
+            }
         }
     });
 }
 
 
 /* =============================================================
-   4. LIVE GOOGLE OAUTH2 IDENTITY SERVICES INITIALIZATION
+   4. LIVE GOOGLE OAUTH2 IDENTITY SERVICES WITH RESPONSIVE SIZING
    ============================================================= */
 
 function initGoogleIdentityServices() {
     if (!window.GOOGLE_CLIENT_ID) return;
 
+    function renderResponsiveGoogleButton() {
+        const googleContainer = document.getElementById("google-sso-btn");
+        const wrapper = document.getElementById("google-sso-wrapper");
+        if (!googleContainer || !window.google?.accounts?.id) return;
+
+        // Measure available container width (subtracting any inner card padding)
+        const parentCard = googleContainer.closest(".auth-portal-card");
+        let availableWidth = 320;
+
+        if (wrapper && wrapper.clientWidth > 0) {
+            availableWidth = wrapper.clientWidth;
+        } else if (parentCard && parentCard.clientWidth > 0) {
+            availableWidth = parentCard.clientWidth - 36;
+        } else if (window.innerWidth < 440) {
+            availableWidth = Math.floor(window.innerWidth - 64);
+        }
+
+        // Google Identity Services strictly requires width between 200px and 400px
+        const calculatedWidth = Math.max(200, Math.min(376, Math.floor(availableWidth)));
+
+        googleContainer.innerHTML = "";
+        window.google.accounts.id.renderButton(googleContainer, {
+            theme: "outline",
+            size: "large",
+            type: "standard",
+            text: "continue_with",
+            shape: "rectangular",
+            logo_alignment: "left",
+            width: calculatedWidth
+        });
+    }
+
     function setupGsi() {
         if (!window.google?.accounts?.id) return;
 
         try {
-            // 1. Initialize Google Identity Services with real Client ID
+            // 1. Initialize Google Identity Services
             window.google.accounts.id.initialize({
                 client_id: window.GOOGLE_CLIENT_ID,
                 callback: window.handleGoogleCredentialResponse,
@@ -302,25 +355,22 @@ function initGoogleIdentityServices() {
                 cancel_on_tap_outside: true
             });
 
-            // 2. Render Official Google Sign-In Button inside login.html container
-            const googleContainer = document.getElementById("google-sso-btn");
-            if (googleContainer) {
-                window.google.accounts.id.renderButton(googleContainer, {
-                    theme: "outline",
-                    size: "large",
-                    type: "standard",
-                    text: "continue_with",
-                    shape: "rectangular",
-                    logo_alignment: "left",
-                    width: 376
-                });
-            }
+            // 2. Render responsive Google button
+            renderResponsiveGoogleButton();
 
             // 3. Prompt One Tap if on login page
             const isLoginPage = window.location.pathname.toLowerCase().endsWith("login.html");
             if (isLoginPage) {
                 window.google.accounts.id.prompt();
             }
+
+            // 4. Listen for orientation / viewport resize to maintain flush card bounds
+            let resizeTimer;
+            window.addEventListener("resize", () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(renderResponsiveGoogleButton, 200);
+            });
+
         } catch (err) {
             console.error("[Auth] Google Identity Services initialization error:", err);
         }
@@ -376,7 +426,7 @@ window.handleGoogleCredentialResponse = async function (response) {
 
 
 /* =============================================================
-   5. UI ERROR HELPER
+   5. UI ERROR HELPER & HTML ESCAPING
    ============================================================= */
 
 function showPortalError(message) {
@@ -390,4 +440,14 @@ function showPortalError(message) {
         errorBanner.textContent = "";
         errorBanner.classList.remove("show");
     }
+}
+
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }

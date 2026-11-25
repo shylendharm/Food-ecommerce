@@ -7,8 +7,9 @@
    2. Initializes Leaflet.js with Esri World Street Map (No API Key & No Watermark).
    3. Draws route polyline and custom markers with XSS-sanitized popups (SEC-05 Patched).
    4. Connects to the full-duplex WebSocket channel with token handshake (SEC-07 Patched).
-   5. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
-   6. Provides interactive customer order cancellation controls using unified design modals.
+   5. Dynamic Protocol Resolver: Automatically uses wss:// on HTTPS and ws:// on HTTP.
+   6. Listens for live kitchen broadcasts and handles all states (including CANCELLED)!
+   7. Provides interactive customer order cancellation controls using unified design modals.
    ============================================================= */
 
 // Global holders for Leaflet map elements, WebSocket connection, and active order
@@ -204,11 +205,53 @@ function calculateRiderPosition(status, restCoords, custCoords) {
 // 3. REAL-TIME WEBSOCKET CLIENT WITH TOKEN HANDSHAKE
 // =============================================================
 
-function connectTrackingWebSocket(orderId) {
-    // SEC-07 Patched: Bind active JWT token as a handshake query parameter
+/**
+ * Dynamically resolves the full WebSocket endpoint:
+ * 1. Honors explicit window.FOODEXPRESS_WS_URL override.
+ * 2. Parses window.FOODEXPRESS_API_BASE_URL if configured for separate backend host.
+ * 3. Fallbacks to 127.0.0.1:8000 on local development.
+ * 4. Resolves wss:// on HTTPS domains and ws:// on plain HTTP domains.
+ */
+function resolveTrackingWsUrl(orderId) {
     const token = getStoredToken();
     const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : "";
-    const wsUrl = `ws://localhost:8000/ws/orders/${orderId}${tokenQuery}`;
+
+    // 1. Explicit global override for custom WebSocket proxy
+    if (typeof window !== "undefined" && window.FOODEXPRESS_WS_URL) {
+        const base = window.FOODEXPRESS_WS_URL.replace(/\/+$/, "");
+        return `${base}/ws/orders/${orderId}${tokenQuery}`;
+    }
+
+    // 2. Derive from API Base URL if configured
+    if (typeof window !== "undefined" && window.FOODEXPRESS_API_BASE_URL) {
+        try {
+            const parsedApi = new URL(window.FOODEXPRESS_API_BASE_URL, window.location.href);
+            const wsProto = parsedApi.protocol === "https:" ? "wss:" : "ws:";
+            return `${wsProto}//${parsedApi.host}/ws/orders/${orderId}${tokenQuery}`;
+        } catch (e) {
+            // Proceed to standard environment detection if URL parse fails
+        }
+    }
+
+    // 3. Local development fallback
+    const isLocalDevelopment = typeof window !== "undefined" && (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.protocol === "file:" ||
+        window.location.hostname === ""
+    );
+
+    if (isLocalDevelopment) {
+        return `ws://127.0.0.1:8000/ws/orders/${orderId}${tokenQuery}`;
+    }
+
+    // 4. Production cloud domain (wss:// on https:, ws:// on http:)
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws/orders/${orderId}${tokenQuery}`;
+}
+
+function connectTrackingWebSocket(orderId) {
+    const wsUrl = resolveTrackingWsUrl(orderId);
 
     console.log(`[WebSocket] Initiating authenticated handshake with: ${wsUrl}`);
 
