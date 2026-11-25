@@ -9,9 +9,9 @@
 
 /**
  * Resolves the backend API base URL dynamically:
- * 1. Honors explicit global override: window.FOODEXPRESS_API_URL (cloud static hosting).
+ * 1. Honors explicit global override: window.FOODEXPRESS_API_URL.
  * 2. Defaults to local FastAPI server on localhost/127.0.0.1.
- * 3. Fallbacks to current domain origin with /api prefix for unified cloud deployments.
+ * 3. In cloud production, routes directly to our live Render backend service.
  */
 function resolveApiBaseUrl() {
     if (typeof window !== "undefined" && window.FOODEXPRESS_API_URL) {
@@ -23,7 +23,9 @@ function resolveApiBaseUrl() {
         window.location.protocol === "file:" ||
         window.location.hostname === ""
     );
-    return isLocalDevelopment ? "http://127.0.0.1:8000/api" : `${window.location.origin}/api`;
+    return isLocalDevelopment
+        ? "http://127.0.0.1:8000/api"
+        : "https://food-ecommerce-q4mi.onrender.com/api";
 }
 
 // Active API Base URL and LocalStorage Session Keys
