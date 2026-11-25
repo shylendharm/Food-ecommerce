@@ -293,7 +293,20 @@ def login(
     check_rate_limit(request, key_prefix="login", max_requests=RATE_LOGIN_MAX if 'RATE_LOGIN_MAX' in locals() else RATE_LIMIT_LOGIN_MAX, window_seconds=RATE_LIMIT_WINDOW_SECONDS)
 
     user = db.query(User).filter(User.email == credentials.email).first()
-    if not user or not user.password_hash or not verify_password(credentials.password, user.password_hash):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
+
+    # Inform users if their account was created via Google Single Sign-On
+    if not user.password_hash and user.auth_provider == AuthProvider.GOOGLE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account was registered using Google. Please sign in with 'Continue with Google'."
+        )
+
+    if not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password."
